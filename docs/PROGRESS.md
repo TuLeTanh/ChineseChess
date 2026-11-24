@@ -162,3 +162,12 @@
   - Cross-env touch tests (`390×844` & `820×1180`): tap-to-move works, side panel clipped due to `min-width: 960px`, `touch-action: auto` noted.
   - Fresh-clone check into `<temp>/thư mục thử/ChineseChess`: JS engine works out of the box (1 expected `404` on absent `manifest.json`), `setup_engine.py` downloads & probes Pikafish cleanly, `/api/engine/info` reports `available: true`.
   - Performance: `594 ms` first load, `61.5 KB` tracked `assets/`, flat `16.31 MB` heap across 100 plies and 10 new games, `0` idle rAF callbacks.
+
+## Feature Branch `feat/lobby-jieqi-online`
+### Phase 0 — Foundations & Refactor
+- Added root `package.json` (`"type": "module"`) and `tests/core-import.test.js` verifying zero DOM/window access in core model/rules/AI/variant modules.
+- Built hash router (`js/app/router.js`) with screen lifecycle `{ mount, unmount }`, `window.__router`, and `window.__leaks`.
+- Added versioned settings store (`js/app/settings.js`, `xq_settings_v1`, legacy migration, persisted `theme`, `nickname`, `guestId`, `bgQuality`, `jieqi`, `online`, `last`, `ratings`).
+- Extracted `js/pages/utilityPages.js`, `js/game/GameController.js`, `js/screens/gameScreen.js`, and `js/variants/xiangqi.js`; reduced `js/main.js` to a 132-line bootstrap.
+- Fixed audit items: `Path.home()` 7z lookup in `tools/setup_engine.py`, silent `200 OK {"empty":true}` fallback on missing `assets/voice/manifest.json`.
+- All gates passed (`23/23` unit tests, `verify.py`, `verify_races.py`, `verify_fx.py`, `verify_engine.py`).

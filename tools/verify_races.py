@@ -76,7 +76,7 @@ def main():
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
 
             # 1. Engine reply after Undo mid-search
-            page.goto(f"{base}/?test&mode=ai&side=red&level=dai-su&engine=js", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=dai-su&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
             page.locator(".ai-thinking-label").wait_for(state="visible", timeout=3000)
             page.locator("button[data-action='undo']").click()
@@ -96,7 +96,7 @@ def main():
             results.append(("Engine reply after New Game", ok2, f"total={v['total']} ply={v['ply']}"))
 
             # 3. Engine reply after Truncate ("Chơi tiếp từ đây") mid-search
-            page.goto(f"{base}/?test&mode=ai&side=red&level=tap-su&engine=js", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
             page.wait_for_function("() => window.__view && window.__view.total >= 2", timeout=8000)
             page.locator(".ai-level-select").select_option("dai-su")
@@ -123,7 +123,7 @@ def main():
             results.append(("Engine reply after Resign", ok4, f"total={v['total']} modal={page.locator('.modal-gameover').is_visible()}"))
 
             # 5. Rapid clicks during animation & AI thinking
-            page.goto(f"{base}/?test&mode=ai&side=red&level=cao-thu&engine=js", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=cao-thu&engine=js", wait_until="networkidle")
             p1 = board_point(page, 7, 7)
             p2 = board_point(page, 4, 7)
             p3 = board_point(page, 1, 7)
@@ -138,7 +138,7 @@ def main():
             results.append(("Rapid clicks during animation/search", ok5, f"total={v['total']}"))
 
             # 6. Tab visibilitychange during AI search
-            page.goto(f"{base}/?test&mode=ai&side=red&level=cao-thu&engine=js", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=cao-thu&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
             page.evaluate("""() => {
                 Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
@@ -155,7 +155,7 @@ def main():
             results.append(("Tab hidden/visible during search", ok6, f"total={v['total']}"))
 
             # 7. Switching AI level mid-search
-            page.goto(f"{base}/?test&mode=ai&side=red&level=dai-su&engine=js", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=dai-su&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
             page.locator(".ai-thinking-label").wait_for(state="visible", timeout=3000)
             page.locator(".ai-level-select").select_option("tap-su")
@@ -165,7 +165,7 @@ def main():
             results.append(("Switch level mid-search", ok7, f"total={v['total']}"))
 
             # 8. Mode switch ai -> pvp -> ai (worker terminate & respawn)
-            page.goto(f"{base}/?test&mode=ai&side=red&level=tap-su&engine=js", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
             page.locator("[data-mode='pvp']").click()
             page.wait_for_timeout(300)

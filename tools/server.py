@@ -556,6 +556,9 @@ class BridgeHandler(http.server.SimpleHTTPRequestHandler):
             sid = (qs.get("id") or ["0"])[0][:64]
             self._handle_sse(sid)
             return
+        if parsed.path == "/assets/voice/manifest.json" and not (ROOT / "assets" / "voice" / "manifest.json").exists():
+            self._send_json(200, {"empty": True, "files": {}})
+            return
         super().do_GET()
 
     def do_POST(self):

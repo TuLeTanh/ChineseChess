@@ -381,7 +381,9 @@ export class VoicePlayer {
     try {
       const resp = await fetch(`assets/voice/manifest.json?v=${Date.now()}`);
       if (!resp.ok) return;
-      this.manifest = await resp.json();
+      const parsed = await resp.json();
+      if (!parsed || parsed.empty || !parsed.files) return;
+      this.manifest = parsed;
     } catch {
       return;
     }

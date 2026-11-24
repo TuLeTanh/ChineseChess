@@ -11,6 +11,7 @@ import { AiClient } from '../ai/client.js';
 import { PikafishClient } from '../ai/pikafishClient.js';
 import { GameController } from '../game/GameController.js';
 import { xiangqiVariant } from '../variants/xiangqi.js';
+import { openSettingsModal } from '../ui/settingsModal.js';
 import { leakTracker } from '../app/router.js';
 
 export function createGameScreen(ctx) {
@@ -43,15 +44,54 @@ export function createGameScreen(ctx) {
       const reqEngine = q.engine || urlParams.get('engine') || settings.last.engine || (pfInfo.available ? 'pikafish' : 'js');
       const engineType = pfInfo.available && reqEngine === 'pikafish' ? 'pikafish' : 'js';
 
-      // Build game shell inside container
+      // Build game shell inside container with top-left "← Sảnh" & gear buttons
       container.className = 'app-shell game-shell';
       container.innerHTML = `
-        <main id="board-stage" class="board-stage"></main>
+        <main id="board-stage" class="board-stage">
+          <div class="game-top-nav">
+            <button type="button" class="game-nav-btn" data-nav="lobby" title="Về sảnh">← Sảnh</button>
+            <button type="button" class="game-nav-btn" data-nav="settings" aria-label="Cài đặt" title="Cài đặt">⚙</button>
+          </div>
+          <div class="game-board-host"></div>
+        </main>
         <aside id="side-panel" class="side-panel" aria-label="Bảng thông tin ván cờ"></aside>
       `;
-      const stage = container.querySelector('#board-stage');
+      const stage = container.querySelector('.game-board-host');
       const sidePanelEl = container.querySelector('#side-panel');
       const modalRoot = ctx.modalRoot;
+
+      container.querySelector('[data-nav="lobby"]').addEventListener('click', () => {
+        if (controller && controller.isGameInProgress()) {
+          modalRoot.hidden = false;
+          modalRoot.innerHTML = `
+            <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="leave-title">
+              <div class="modal-card">
+                <h3 id="leave-title">Rời ván cờ?</h3>
+                <p>${mode === 'online' ? 'Rời trận sẽ bị xử thua.' : 'Ván hiện tại sẽ mất.'}</p>
+                <div class="modal-actions">
+                  <button type="button" class="pill-btn modal-cancel">Ở lại</button>
+                  <button type="button" class="pill-btn pill-btn-danger modal-leave-ok">Về sảnh</button>
+                </div>
+              </div>
+            </div>
+          `;
+          modalRoot.querySelector('.modal-cancel').addEventListener('click', () => {
+            modalRoot.hidden = true;
+            modalRoot.innerHTML = '';
+          });
+          modalRoot.querySelector('.modal-leave-ok').addEventListener('click', () => {
+            modalRoot.hidden = true;
+            modalRoot.innerHTML = '';
+            ctx.router.navigate('/');
+          });
+          return;
+        }
+        ctx.router.navigate('/');
+      });
+
+      container.querySelector('[data-nav="settings"]').addEventListener('click', (ev) => {
+        openSettingsModal(ctx, 'appearance', ev.currentTarget);
+      });
 
       controller = new GameController({
         variant: xiangqiVariant,

@@ -9,6 +9,8 @@ import { SfxManager } from './audio/sfx.js';
 import { settingsStore } from './app/settings.js';
 import { Router, buildHash } from './app/router.js';
 import { createGameScreen } from './screens/gameScreen.js';
+import { createLobbyScreen } from './screens/lobbyScreen.js';
+import { createModeScreen } from './screens/modeScreen.js';
 import {
   mountEffectsPage,
   mountVoicesPage,
@@ -108,6 +110,49 @@ async function init() {
         s.audio.volume = sfx.getVolume();
       });
     },
+    resolveOnlineHttpBase() {
+      const custom = (settingsStore.get().online.serverUrl || '').trim();
+      if (custom) {
+        return custom.replace(/^ws:/i, 'http:').replace(/^wss:/i, 'https:').replace(/\/+$/, '');
+      }
+      const loc = window.location;
+      const host = loc.hostname;
+      if (host === 'localhost' || host === '127.0.0.1' || /^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+        return loc.port === '8787' ? loc.origin : `${loc.protocol}//${host}:8787`;
+      }
+      return loc.origin;
+    },
+    async probeOnline() {
+      const candidates = [];
+      const custom = (settingsStore.get().online.serverUrl || '').trim();
+      if (custom) {
+        candidates.push(custom.replace(/^ws:/i, 'http:').replace(/^wss:/i, 'https:').replace(/\/+$/, ''));
+      } else {
+        candidates.push(window.location.origin);
+        const host = window.location.hostname;
+        if (window.location.port !== '8787' && (host === 'localhost' || host === '127.0.0.1')) {
+          candidates.push(`${window.location.protocol}//${host}:8787`);
+        }
+      }
+      for (const base of candidates) {
+        const ctrl = new AbortController();
+        const tid = window.setTimeout(() => ctrl.abort(), 2000);
+        const t0 = performance.now();
+        try {
+          const resp = await fetch(`${base}/api/online/info`, { signal: ctrl.signal });
+          window.clearTimeout(tid);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.ok) {
+              return { ...data, base, latencyMs: Math.round(performance.now() - t0) };
+            }
+          }
+        } catch {
+          window.clearTimeout(tid);
+        }
+      }
+      return { ok: false, latencyMs: null, players: 0 };
+    },
   };
 
   // Legacy query-param compatibility (?mode=pvp|ai or ?fen=... without a hash)
@@ -120,16 +165,15 @@ async function init() {
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${buildHash(`/play/cotuong/${legacyMode}`, q)}`);
   }
 
-  // Phase 0 router (Phase 1 adds Lobby, Mode Select, and Settings screens)
   const router = new Router({
     container: appRoot,
     testMode: isTestMode,
     screens: {
-      lobby: () => createGameScreen(ctx),
-      mode: () => createGameScreen(ctx),
-      online: () => createGameScreen(ctx),
-      room: () => createGameScreen(ctx),
-      join: () => createGameScreen(ctx),
+      lobby: () => createLobbyScreen(ctx),
+      mode: () => createModeScreen(ctx),
+      online: () => createModeScreen(ctx),
+      room: () => createModeScreen(ctx),
+      join: () => createModeScreen(ctx),
       play: () => createGameScreen(ctx),
     },
   });

@@ -171,3 +171,9 @@
 - Extracted `js/pages/utilityPages.js`, `js/game/GameController.js`, `js/screens/gameScreen.js`, and `js/variants/xiangqi.js`; reduced `js/main.js` to a 132-line bootstrap.
 - Fixed audit items: `Path.home()` 7z lookup in `tools/setup_engine.py`, silent `200 OK {"empty":true}` fallback on missing `assets/voice/manifest.json`.
 - All gates passed (`23/23` unit tests, `verify.py`, `verify_races.py`, `verify_fx.py`, `verify_engine.py`).
+
+### Phase 1 — Lobby, Animated Background, Mode Select & Settings
+- Built `js/ui/lobbyBackground.js` ("Đêm hội đèn lồng bên sông": night sky, moon, twinkling stars, 3 ink-wash mountain layers with parallax, mist, single DPR-capped canvas with lanterns, fireflies, petals, shooting star, ink stamps, hover mood crossfade, adaptive quality, `bgQuality` high/low/off, `prefers-reduced-motion`, zero rAF in game).
+- Built `js/screens/lobbyScreen.js`, `js/screens/modeScreen.js`, `js/ui/eloBar.js`, and `js/ui/settingsModal.js` (7 tabs, focus trap, Esc close, live validation, persisted theme/nickname/audio/Cờ Úp/online URL).
+- Added in-game top-left `← Sảnh` (with leave confirmation if game in progress) and `⚙` buttons.
+- Added `tools/verify_lobby.py`: passed `1600x900 .. 360x740` (0 horizontal overflow), `maxGap <= 50 ms`, `0` idle rAF in game, `0` leaks & `0.00 MB` heap delta across 20 round trips, `errors=0 warnings=0`.

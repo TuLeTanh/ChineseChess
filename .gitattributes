@@ -1,0 +1,13 @@
+* text=auto
+
+*.png binary
+*.jpg binary
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.ttf binary
+*.woff2 binary
+*.nnue binary
+*.exe binary
+*.7z binary
+*.zip binary

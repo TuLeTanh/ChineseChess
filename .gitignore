@@ -1,0 +1,36 @@
+# Pikafish binaries, network & local config (download via tools/setup_engine.py)
+engine/dist/
+engine/*.7z
+engine/*.zip
+engine/*.exe
+engine/*.nnue
+engine/engine.json
+!engine/README.md
+!engine/LICENSE
+
+# Generated voice lines (generate via tools/gen_voice.py)
+assets/voice/*.mp3
+assets/voice/manifest.json
+!assets/voice/README.md
+
+# Keep sound notes and embedded subset font + license
+!assets/sounds/README.md
+!assets/fonts/*.ttf
+!assets/fonts/LICENSE-OFL.txt
+
+# Generated previews, logs, caches & archives
+preview/
+logs/
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+.env
+*.log
+.DS_Store
+Thumbs.db
+_unpacked/
+_font_tmp/
+target/
+files (1).zip
+*.zip

@@ -7,6 +7,7 @@
  *        { type: 'result', id, move, score, depth, nodes, nps, pv }
  */
 import { searchBestMove } from './search.js';
+import { searchJieqiBestMove } from './jieqiSearch.js';
 
 let cancelledId = -1;
 
@@ -20,8 +21,8 @@ self.onmessage = (ev) => {
   }
 
   if (msg.type === 'search') {
-    const { id, fen, history, level, seed } = msg;
-    const res = searchBestMove(fen, {
+    const { id, variant, fen, history, level, seed } = msg;
+    const commonOpts = {
       level,
       history,
       seed,
@@ -31,7 +32,11 @@ self.onmessage = (ev) => {
           self.postMessage({ type: 'info', id, ...info });
         }
       },
-    });
+    };
+    const res =
+      variant === 'coup' || variant === 'jieqi'
+        ? searchJieqiBestMove(fen, commonOpts)
+        : searchBestMove(fen, commonOpts);
     if (cancelledId !== id) {
       self.postMessage({ type: 'result', id, ...res });
     }

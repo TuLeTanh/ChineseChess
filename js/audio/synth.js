@@ -21,6 +21,7 @@ export const SOUND_EVENTS = [
   'sword_touch',
   'defeat',
   'cloth_whoosh',
+  'reveal',
 ];
 
 export const SOUND_META = {
@@ -44,6 +45,7 @@ export const SOUND_META = {
   sword_touch: { label: 'Kiếm chạm hòa (sword_touch)', duration: 1.0, isGong: true, isNoiseBurst: false },
   defeat: { label: 'Bại trận (defeat)', duration: 2.5, isGong: true, isNoiseBurst: false },
   cloth_whoosh: { label: 'Cờ trắng phất (cloth_whoosh)', duration: 0.22, isGong: false, isNoiseBurst: true },
+  reveal: { label: 'Lật quân Cờ Úp (reveal)', duration: 0.25, isGong: false, isNoiseBurst: true },
 };
 
 function makeRng(seed) {
@@ -795,6 +797,42 @@ export async function renderSoundBuffer(eventName, sampleRate = 44100) {
       n.stop(0.22);
       break;
     }
+
+    case 'reveal': {
+      // Short light wood flip clack + soft bright pentatonic "ting" (D5 587.33 Hz base)
+      scheduleClassicClack(ctx, dest, 0, {
+        noiseFreq: 1480,
+        noiseQ: 7,
+        noiseGain: 0.42,
+        noiseDecay: 0.026,
+        bodyFreq: 260,
+        bodyEndFreq: 190,
+        bodyGain: 0.26,
+        bodyDecay: 0.04,
+        seed: 977,
+      });
+
+      const base = 587.33; // D5
+      const partials = [
+        { r: 1.0, amp: 0.30, d: 0.21 },
+        { r: 2.0, amp: 0.14, d: 0.15 },
+        { r: 3.01, amp: 0.07, d: 0.10 },
+      ];
+      for (const p of partials) {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(base * p.r, 0.015);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, 0.015);
+        g.gain.linearRampToValueAtTime(p.amp, 0.022);
+        g.gain.exponentialRampToValueAtTime(0.0001, Math.min(0.245, 0.022 + p.d));
+        osc.connect(g);
+        g.connect(dest);
+        osc.start(0.015);
+        osc.stop(Math.min(0.25, 0.025 + p.d));
+      }
+      break;
+    }
   }
 
   const rendered = await ctx.startRendering();
@@ -820,6 +858,8 @@ export async function renderSoundBuffer(eventName, sampleRate = 44100) {
     saturateAndNormalize(rendered, 0.65, 1.0);
   } else if (eventName === 'cloth_whoosh') {
     saturateAndNormalize(rendered, 0.38, 1.0);
+  } else if (eventName === 'reveal') {
+    saturateAndNormalize(rendered, 0.54, 1.0);
   } else {
     const ch = rendered.getChannelData(0);
     let peak = 0;

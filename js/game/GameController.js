@@ -4,6 +4,7 @@
  * Parameterised by variant (xiangqi / jieqi) and mode (local / ai / online).
  */
 import { Board } from '../model/board.js';
+import { JieqiBoard } from '../jieqi/rules.js';
 import { START_FEN } from '../model/fen.js';
 import { RED, BLACK } from '../model/piece.js';
 import { GameStatus } from '../rules.js';
@@ -57,7 +58,7 @@ export class GameController {
     this.engineType = opts.engineType || 'js';
     this.practiceMode = Boolean(opts.practiceMode) && this.mode === 'local';
     this.autoFlipLocal = Boolean(opts.autoFlipLocal);
-    this.gameStartFen = opts.initialFen || START_FEN;
+    this.gameStartFen = opts.initialFen || (this.variant.id === 'coup' ? '' : START_FEN);
     this.theme = opts.theme;
     this.sfx = opts.sfx;
     this.aiClient = opts.aiClient;
@@ -130,6 +131,21 @@ export class GameController {
 
   isGameInProgress() {
     return this.board.history.length > 0 && !this.isGameOver();
+  }
+
+  canUndo() {
+    if (this.board.isJieqi && (this.mode === 'ai' || this.mode === 'online')) return false;
+    return true;
+  }
+
+  canContinue() {
+    if (this.board.isJieqi && (this.mode === 'ai' || this.mode === 'online')) return false;
+    if (this.mode === 'online') return false;
+    return true;
+  }
+
+  _boardFromSnapshotFen(fen) {
+    return this.board.isJieqi ? JieqiBoard.fromPublicFen(fen) : Board.fromFen(fen);
   }
 
   isGameOver() {
@@ -217,7 +233,8 @@ export class GameController {
       if (res === null) return null;
     }
     return this.aiClient.search({
-      fen: this.board.toFen(),
+      variant: this.variant.id,
+      fen: this.board.isJieqi ? this.board.publicFen() : this.board.toFen(),
       history: this.board.positionHistory,
       level: levelId,
       onInfo,
@@ -242,7 +259,7 @@ export class GameController {
     const active = this.viewPly < total;
     this.inReviewMode = active;
     const snap = this.board.snapshotAt(this.viewPly);
-    const viewBoard = active ? Board.fromFen(snap.fen) : null;
+    const viewBoard = active ? this._boardFromSnapshotFen(snap.fen) : null;
     const reduced = prefersReducedMotion();
 
     let transition = 'instant';
@@ -495,7 +512,7 @@ export class GameController {
           viewPly: this.viewPly,
           totalPlies: this.board.history.length,
           hasNewMoves: true,
-          viewBoard: Board.fromFen(snap.fen),
+          viewBoard: this._boardFromSnapshotFen(snap.fen),
           lastMove: snap.move,
           transition: 'instant',
           reducedMotion: true,
@@ -519,6 +536,9 @@ export class GameController {
     const isSpecial = enforceRules && (this.lastStatus === GameStatus.Check || isMateOrStale || isDraw);
 
     this.sfx.play(move.captured ? 'capture' : 'move', 0, { skipVoice: isSpecial });
+    if (move.wasCovered && move.reveal && typeof this.sfx.playReveal === 'function') {
+      this.sfx.playReveal(move.reveal.type);
+    }
 
     if (enforceRules) {
       if (this.lastStatus === GameStatus.Check) {
@@ -564,7 +584,11 @@ export class GameController {
     this.inReviewMode = false;
     this.viewPly = 0;
     this.gameStartFen = START_FEN;
-    this.board.loadFen(START_FEN);
+    if (this.board.isJieqi) {
+      this.board.reset({});
+    } else {
+      this.board.loadFen(START_FEN);
+    }
     if (this.usePikafish()) this.pikafishClient.newGame();
     if (this.boardView) {
       this.boardView.clearHintArrow();
@@ -595,6 +619,7 @@ export class GameController {
   }
 
   handleContinueFromHere(ply) {
+    if (!this.canContinue()) return;
     this.cancelAi();
     this.cancelEndFx();
     this.stopAutoPlay();
@@ -627,6 +652,7 @@ export class GameController {
   }
 
   handleUndo() {
+    if (!this.canUndo()) return;
     this.cancelEndFx();
     this.stopAutoPlay();
     if (this.boardView) this.boardView.clearHintArrow();

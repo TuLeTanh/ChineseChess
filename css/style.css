@@ -2514,3 +2514,102 @@ body.mode-effects .board-stage {
     animation: none !important;
   }
 }
+
+
+/* =========================================================
+   Cờ Úp (Jieqi) UI: variant header, reveal badge, pool panel
+   ========================================================= */
+.variant-header-pill {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--accent-gold, #E6B85C);
+  background: rgba(217, 164, 65, 0.12);
+  border: 1px solid rgba(217, 164, 65, 0.34);
+  border-radius: 999px;
+  padding: 4px 12px;
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.move-reveal-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(217, 164, 65, 0.22);
+  color: var(--accent-gold, #F2C14E);
+  margin-left: 3px;
+  line-height: 1.1;
+}
+
+.jieqi-pool-panel {
+  background: var(--card-bg, rgba(30, 22, 16, 0.72));
+  border: 1px solid var(--card-border, rgba(217, 164, 65, 0.22));
+  border-radius: 10px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.jieqi-pool-panel[hidden] {
+  display: none;
+}
+
+.pool-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #B8A994);
+}
+
+.pool-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.pool-side-label {
+  font-size: 11px;
+  color: var(--text-secondary, #D9CEBE);
+  min-width: 46px;
+}
+
+.pool-items {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.pool-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px 3px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pool-item svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pool-item.is-zero {
+  opacity: 0.28;
+  filter: grayscale(0.8);
+}
+
+.pool-count {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #F4EBDC);
+}

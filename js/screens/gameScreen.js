@@ -11,6 +11,7 @@ import { AiClient } from '../ai/client.js';
 import { PikafishClient } from '../ai/pikafishClient.js';
 import { GameController } from '../game/GameController.js';
 import { xiangqiVariant } from '../variants/xiangqi.js';
+import { jieqiVariant } from '../variants/jieqi.js';
 import { openSettingsModal } from '../ui/settingsModal.js';
 import { leakTracker } from '../app/router.js';
 
@@ -28,21 +29,22 @@ export function createGameScreen(ctx) {
       const urlParams = new URLSearchParams(window.location.search);
       const settings = ctx.settingsStore.get();
 
+      const variant = route.game === 'coup' ? jieqiVariant : xiangqiVariant;
       const mode = route.mode === 'ai' ? 'ai' : route.mode === 'online' ? 'online' : 'local';
       let sideChoice = q.side || urlParams.get('side') || settings.last.side || RED;
       if (sideChoice === 'random') sideChoice = Math.random() < 0.5 ? RED : BLACK;
       const playerSide = sideChoice === 'black' ? BLACK : RED;
 
       const aiLevel = q.level || urlParams.get('level') || settings.last.level || 'nghiep-du';
-      const initialFen = q.fen || urlParams.get('fen') || START_FEN;
-      const practiceMode = q.free === '1';
+      const initialFen = q.fen || urlParams.get('fen') || (variant.id === 'coup' ? '' : START_FEN);
+      const practiceMode = variant.supportsPracticeMode && q.free === '1';
       const autoFlipLocal = q.autoflip === '1';
 
       const aiClient = new AiClient();
       const pikafishClient = new PikafishClient();
-      const pfInfo = await pikafishClient.probeInfo();
+      const pfInfo = variant.supportsPikafish ? await pikafishClient.probeInfo() : { available: false };
       const reqEngine = q.engine || urlParams.get('engine') || settings.last.engine || (pfInfo.available ? 'pikafish' : 'js');
-      const engineType = pfInfo.available && reqEngine === 'pikafish' ? 'pikafish' : 'js';
+      const engineType = variant.supportsPikafish && pfInfo.available && reqEngine === 'pikafish' ? 'pikafish' : 'js';
 
       // Build game shell inside container with top-left "← Sảnh" & gear buttons
       container.className = 'app-shell game-shell';
@@ -94,7 +96,7 @@ export function createGameScreen(ctx) {
       });
 
       controller = new GameController({
-        variant: xiangqiVariant,
+        variant,
         mode,
         playerSide,
         aiLevel,
@@ -124,17 +126,20 @@ export function createGameScreen(ctx) {
         onStateChange: (evt) => controller.onStateChange(evt),
         onReturnToLive: () => controller.goToPly(controller.board.history.length),
         onContinueFromHere: () => {
-          if (sidePanel && controller.isReviewing()) {
+          if (sidePanel && controller.isReviewing() && controller.canContinue()) {
             sidePanel.requestTruncate(controller.viewPly);
           }
         },
       });
+      boardView.setAllowContinue(controller.canContinue());
 
       sidePanel = new SidePanel({
         container: sidePanelEl,
         modalRoot,
         board: controller.board,
         theme: ctx.getTheme(),
+        variant: variant.id,
+        showPool: settings.jieqi.showPool,
         practiceMode: controller.practiceMode,
         mode: mode === 'ai' ? 'ai' : 'pvp',
         playerSide: controller.playerSide,
@@ -171,6 +176,7 @@ export function createGameScreen(ctx) {
             s.last.mode = mapped;
           });
           controller.mode = mapped;
+          boardView.setAllowContinue(controller.canContinue());
           if (mapped === 'local') {
             pikafishClient.cancel();
             aiClient.terminate();
@@ -245,6 +251,7 @@ export function createGameScreen(ctx) {
         boardView.setTheme(th);
         sidePanel.setTheme(th);
         sidePanel.syncAudio(s.audio.muted, s.audio.volume, s.audio.voice);
+        sidePanel.setShowPool(s.jieqi.showPool);
       });
 
       onBeforeUnload = () => {

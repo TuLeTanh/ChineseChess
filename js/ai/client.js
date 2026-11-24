@@ -2,6 +2,7 @@
  * Lazy Web Worker client for Xiangqi AI with automatic main-thread fallback.
  */
 import { searchBestMove } from './search.js';
+import { searchJieqiBestMove } from './jieqiSearch.js';
 import { getAiLevel } from './levels.js';
 
 export class AiClient {
@@ -95,6 +96,7 @@ export class AiClient {
         this.worker.postMessage({
           type: 'search',
           id,
+          variant: req.variant || 'cotuong',
           fen: req.fen,
           history: req.history || [],
           level: req.level,
@@ -103,10 +105,31 @@ export class AiClient {
       });
     }
 
-    // Fallback: chunked iterative deepening on main thread with setTimeout yielding
+    // Fallback: chunked search on main thread with setTimeout yielding
     if (!this.loggedFallback) {
       this.loggedFallback = true;
       console.info('Web Worker unavailable; falling back to chunked main-thread AI search.');
+    }
+    if (req.variant === 'coup' || req.variant === 'jieqi') {
+      return new Promise((resolve) => {
+        this._resolve = resolve;
+        window.setTimeout(() => {
+          if (this.activeId !== id) return;
+          const res = searchJieqiBestMove(req.fen, {
+            level: req.level,
+            seed: req.seed,
+            onInfo: (info) => {
+              if (this._onInfo) this._onInfo(info);
+            },
+          });
+          if (this.activeId === id) {
+            this.activeId = null;
+            this._resolve = null;
+            this._onInfo = null;
+            resolve(res);
+          }
+        }, 0);
+      });
     }
     const cfg = getAiLevel(req.level);
     return new Promise((resolve) => {

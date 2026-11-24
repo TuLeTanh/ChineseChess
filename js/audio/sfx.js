@@ -253,6 +253,49 @@ export class SfxManager {
   }
 
   /**
+   * Play the Cờ Úp reveal chime pitched by piece kind on a D-major pentatonic scale:
+   * chariot D5, cannon E5, horse F#5, elephant A5, advisor B5, soldier D6 (softer).
+   * @param {string} kind
+   */
+  playReveal(kind) {
+    if (this.muted) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    this._logEvent('reveal');
+
+    const rates = {
+      chariot: 1.0,
+      cannon: 1.1225,
+      horse: 1.2599,
+      elephant: 1.4983,
+      advisor: 1.6818,
+      soldier: 2.0,
+    };
+    const rate = rates[kind] || 1.0;
+    const gainScale = kind === 'soldier' ? 0.68 : 0.92;
+
+    const scheduleNow = () => {
+      if (this.muted || !this.ctx || !this.masterGain) return;
+      const buf = this.buffers.get('reveal');
+      if (!buf) return;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.setValueAtTime(rate, this.ctx.currentTime);
+      const gainNode = this.ctx.createGain();
+      gainNode.gain.setValueAtTime(gainScale, this.ctx.currentTime);
+      src.connect(gainNode);
+      gainNode.connect(this.sfxGain || this.masterGain);
+      src.start(this.ctx.currentTime);
+    };
+
+    if (this.ctx && this.buffers.has('reveal')) {
+      if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      scheduleNow();
+    } else {
+      this.ensureReady().then(scheduleNow);
+    }
+  }
+
+  /**
    * Play a voice line directly (used by ?sounds demo page).
    */
   playVoiceDirect(voiceKey, opts = {}) {

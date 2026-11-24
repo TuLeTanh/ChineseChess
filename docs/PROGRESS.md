@@ -177,3 +177,11 @@
 - Built `js/screens/lobbyScreen.js`, `js/screens/modeScreen.js`, `js/ui/eloBar.js`, and `js/ui/settingsModal.js` (7 tabs, focus trap, Esc close, live validation, persisted theme/nickname/audio/Cờ Úp/online URL).
 - Added in-game top-left `← Sảnh` (with leave confirmation if game in progress) and `⚙` buttons.
 - Added `tools/verify_lobby.py`: passed `1600x900 .. 360x740` (0 horizontal overflow), `maxGap <= 50 ms`, `0` idle rAF in game, `0` leaks & `0.00 MB` heap delta across 20 round trips, `errors=0 warnings=0`.
+
+
+## Phase 2 — Cờ Úp (Jieqi) (branch `feat/lobby-jieqi-online`)
+- Implemented pure Node-importable Cờ Úp rules (`js/jieqi/rules.js`), variant descriptor (`js/variants/jieqi.js`), PIMC AI presets (`js/ai/levelsJieqi.js`), PIMC search (`js/ai/jieqiSearch.js`), and Vietnamese rules reference (`docs/RULES_JIEQI.md`).
+- Added covered-piece SVG art (`pieceBackSymbolId`, lacquer crimson + ebony medallions) in `js/render/pieceSvg.js`, reveal flip animation and `"?"` target hints in `js/ui/boardView.js`, remaining-pool panel and reveal badges/diamonds in `js/ui/sidePanel.js`, and pentatonic pitched `reveal` synth sound in `js/audio/synth.js` + `js/audio/sfx.js`.
+- Wired Cờ Úp into Web Worker (`js/ai/worker.js`, `js/ai/client.js`), `GameController`, and `gameScreen` (disabling undo & truncate in Cờ Úp AI/online modes).
+- Added `tests/jieqi.test.js` (10/10 invariants incl. 44/1920, 300×5 legality independence, 300-ply undo round-trip, no-peeking), `tests/jieqiAi.test.js` (4/4 incl. 100 random positions, 3 mate-in-1 puzzles, 4-game self-play, no-peeking), and `tools/verify_jieqi.py` (passed with `errors=0 warnings=0`).
+- All 32/32 Node unit tests + `verify_sound.py` (19 buffers incl. `reveal` peak 0.54) + `verify_jieqi.py` + `verify.py` passed.

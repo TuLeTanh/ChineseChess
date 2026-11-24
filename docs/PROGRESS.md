@@ -185,3 +185,10 @@
 - Wired Cờ Úp into Web Worker (`js/ai/worker.js`, `js/ai/client.js`), `GameController`, and `gameScreen` (disabling undo & truncate in Cờ Úp AI/online modes).
 - Added `tests/jieqi.test.js` (10/10 invariants incl. 44/1920, 300×5 legality independence, 300-ply undo round-trip, no-peeking), `tests/jieqiAi.test.js` (4/4 incl. 100 random positions, 3 mate-in-1 puzzles, 4-game self-play, no-peeking), and `tools/verify_jieqi.py` (passed with `errors=0 warnings=0`).
 - All 32/32 Node unit tests + `verify_sound.py` (19 buffers incl. `reveal` peak 0.54) + `verify_jieqi.py` + `verify.py` passed.
+
+
+## Phase 3 — Online Play (branch `feat/lobby-jieqi-online`)
+- Added shared protocol (`js/online/protocol.js`), authoritative Node + `ws` server (`server/package.json`, `server/package-lock.json`, `server/index.js`), browser client (`js/online/connection.js`, `js/online/onlineModals.js`, `js/online/onlineGameController.js`).
+- Features: FIFO matchmaking (120 s timeout), 6-char private rooms + `#/join/<CODE>` invite links, server-authoritative Xiangqi & Cờ Úp (server-only `_secret`, zero wire leak), monotonic `hrtime.bigint()` clocks + timeout, 90 s/180 s reconnect grace & reload resync, draw offers, resign, rematch with swapped colors, strict static whitelist, origin checks, rate limits, and XSS-safe `textContent` nicknames.
+- Added `Dockerfile`, `.dockerignore`, `docs/DEPLOY.md`, `docs/PROTOCOL.md`, updated `README.md` and `docs/DECISIONS.md`, and curated 6 optimized screenshots in `docs/screenshots/` (163–305 KB each).
+- Added `tests/online/server.test.js` (7/7 passed) and `tools/verify_online.py` (2 Playwright contexts: quick-match, reload resync, room link Cờ Úp, XSS check — passed with `err=0, warn=0`).

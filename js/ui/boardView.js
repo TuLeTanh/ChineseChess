@@ -116,6 +116,8 @@ export class BoardView {
     this.onIllegalMove = opts.onIllegalMove || (() => {});
     this.onReturnToLive = opts.onReturnToLive || (() => {});
     this.onContinueFromHere = opts.onContinueFromHere || (() => {});
+    /** Optional online interceptor: if set, human moves call this instead of mutating board directly. */
+    this.onInterceptMove = opts.onInterceptMove || null;
 
     /** @type {import('../model/board.js').Board | null} */
     this.displayBoard = null;
@@ -1021,7 +1023,13 @@ export class BoardView {
         this.onSelectPiece(pos);
         this._selectPos(pos);
       } else {
-        this._performMove(this.selected, pos, null, false);
+        if (this.onInterceptMove) {
+          const fromPos = this.selected;
+          this.clearSelection();
+          this.onInterceptMove(fromPos, pos);
+        } else {
+          this._performMove(this.selected, pos, null, false);
+        }
         return;
       }
     }
@@ -1109,7 +1117,13 @@ export class BoardView {
 
     if (target && !samePos(target, drag.from) && this._isLegalTarget(target)) {
       this.hiddenKeys.delete(originKey);
-      this._performMove(drag.from, target, pt, true);
+      if (this.onInterceptMove) {
+        this.clearSelection();
+        this.renderPieces();
+        this.onInterceptMove(drag.from, target);
+      } else {
+        this._performMove(drag.from, target, pt, true);
+      }
     } else {
       // Illegal drop: spring back (160 ms) + tiny horizontal shake (2 cycles, 4 px, 140 ms)
       const droppedElsewhere = !target || !samePos(target, drag.from);

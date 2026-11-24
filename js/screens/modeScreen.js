@@ -125,7 +125,7 @@ export function createModeScreen(ctx) {
         const b1 = container.querySelector('[data-badge="online"]');
         const b2 = container.querySelector('[data-badge="room"]');
         if (onlineInfo.ok) {
-          b1.textContent = `Đang online: ${onlineInfo.players ?? 0}`;
+          b1.textContent = `Đang online: ${onlineInfo.onlineCount ?? onlineInfo.players ?? 0}`;
           b1.className = 'mode-tile-badge is-ready';
           b2.textContent = 'Sẵn sàng';
           b2.className = 'mode-tile-badge is-ready';

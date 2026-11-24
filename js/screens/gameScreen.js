@@ -13,12 +13,14 @@ import { GameController } from '../game/GameController.js';
 import { xiangqiVariant } from '../variants/xiangqi.js';
 import { jieqiVariant } from '../variants/jieqi.js';
 import { openSettingsModal } from '../ui/settingsModal.js';
+import { OnlineGameBridge } from '../online/onlineGameController.js';
 import { leakTracker } from '../app/router.js';
 
 export function createGameScreen(ctx) {
   let controller = null;
   let boardView = null;
   let sidePanel = null;
+  let onlineBridge = null;
   let onKeyDown = null;
   let onBeforeUnload = null;
   let unsubSettings = null;
@@ -244,6 +246,17 @@ export function createGameScreen(ctx) {
 
       controller.attachViews(boardView, sidePanel);
 
+      if (mode === 'online') {
+        onlineBridge = new OnlineGameBridge({
+          ctx,
+          controller,
+          boardView,
+          sidePanel,
+          stageEl: container.querySelector('#board-stage'),
+        });
+        await onlineBridge.attach();
+      }
+
       unsubSettings = ctx.settingsStore.subscribe((s) => {
         if (!controller || controller.disposed) return;
         const th = ctx.getTheme();
@@ -328,6 +341,10 @@ export function createGameScreen(ctx) {
         window.removeEventListener('beforeunload', onBeforeUnload);
         onBeforeUnload = null;
         leakTracker.trackListener(-1);
+      }
+      if (onlineBridge) {
+        onlineBridge.dispose();
+        onlineBridge = null;
       }
       if (controller) {
         controller.dispose();

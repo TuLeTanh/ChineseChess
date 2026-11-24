@@ -6,8 +6,9 @@ Game Cờ Tướng chạy ngay trên trình duyệt: bàn cờ và quân cờ v�
 
 | | |
 |---|---|
-| ![Bàn cờ Gỗ Lim](docs/screenshots/board_go_lim.png) | ![Bàn cờ Ngọc Bích](docs/screenshots/board_ngoc_bich.png) |
-| ![Giao diện đang chơi](docs/screenshots/app_midgame.png) | ![Xem lại ván](docs/screenshots/app_review.png) |
+| ![Sảnh chờ Gỗ Lim](docs/screenshots/lobby.png) | ![Sảnh chờ Ngọc Bích](docs/screenshots/lobby_jade.png) |
+| ![Cờ Úp ban đầu](docs/screenshots/jieqi_start.png) | ![Cờ Úp lật quân & bảng quân còn lại](docs/screenshots/jieqi_reveal.png) |
+| ![Phòng riêng online](docs/screenshots/online_room.png) | ![Đấu online](docs/screenshots/online_game.png) |
 
 ## Mục lục
 - [Tính năng](#tính-năng)
@@ -24,6 +25,11 @@ Game Cờ Tướng chạy ngay trên trình duyệt: bàn cờ và quân cờ v�
 - [Giấy phép và ghi công](#giấy-phép-và-ghi-công)
 
 ## Tính năng
+
+**Sảnh chờ, Cờ Úp (Jieqi) & Đấu Online**
+- **Sảnh chờ "Đêm hội đèn lồng bên sông"**: nền Canvas 2D động theo theme (`Gỗ Lim` / `Ngọc Bích`), chọn trò chơi (Cờ Tướng / Cờ Úp), chọn chế độ, cài đặt hợp nhất (`xq_settings_v1`, lưu cả theme), tối ưu từ desktop tới màn hình 360 px.
+- **Cờ Úp (Jieqi)**: đầy đủ luật Cờ Úp ([`docs/RULES_JIEQI.md`](docs/RULES_JIEQI.md)) — 15 quân úp mỗi bên đi theo vị trí giả rồi lật khi di chuyển, Sĩ đi chéo toàn bàn, Tượng qua sông (vẫn cản mắt), bảng **Quân úp còn lại**, hiệu ứng lật quân, âm thanh lật theo ngũ cung, và máy **PIMC** chạy trong Web Worker (không bao giờ nhìn trộm quân úp).
+- **Đấu Online (Cờ Tướng & Cờ Úp)**: máy chủ Node + `ws` uy quyền ([`docs/PROTOCOL.md`](docs/PROTOCOL.md), [`docs/DEPLOY.md`](docs/DEPLOY.md)) hỗ trợ ghép trận nhanh, phòng riêng mã 6 ký tự + link mời `#/join/<CODE>`, đồng hồ đếm ngược, tự kết nối lại khi tải lại trang, xin hòa / đầu hàng / tái đấu đổi màu.
 
 **Giao diện**
 - Bàn cờ và 14 loại quân vẽ hoàn toàn bằng SVG (vân gỗ bằng `feTurbulence`, đổ bóng, vát cạnh, chữ Hán khắc nổi), nét sắc ở mọi độ phân giải (đã kiểm tra DPR 1, 1.5, 2).
@@ -75,6 +81,18 @@ python tools/server.py --port 8000
 
 Mở http://localhost:8000. Trên Windows có thể bấm đúp `run.bat`.
 
+**Chạy kèm máy chủ Online (tất cả trong một, Cờ Tướng + Cờ Úp + Đấu Online):**
+
+```powershell
+cd server
+npm install
+cd ..
+node server/index.js          # mở http://127.0.0.1:8787
+node server/index.js --lan    # chơi qua mạng LAN (lắng nghe 0.0.0.0:8787)
+```
+
+Xem hướng dẫn triển khai Docker / VPS / PaaS tại [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 > Không mở thẳng `index.html` bằng `file://`, vì trình duyệt chặn JavaScript module. `python -m http.server 8000` cũng chạy được game nhưng sẽ không có cầu nối Pikafish.
 
 Nếu chưa cài Pikafish, game tự dùng engine **Nội bộ (JS)** và vẫn chơi đầy đủ.
@@ -122,7 +140,12 @@ Nghe thử các giọng tại `/?voices`, nghe toàn bộ âm thanh tại `/?sou
 
 - **Chế độ chơi**: chọn **Hai người** hoặc **Đấu máy** ở đầu bảng phải.
 - **Đấu máy**: chọn **Bạn cầm: Đỏ / Đen** (chọn Đen sẽ tự xoay bàn và máy đi trước), chọn cấp độ (`Tập sự` → `Đại sư`), và chọn **Máy: Pikafish** hoặc **Nội bộ (JS)**.
-- **Trợ giúp & điều khiển**: **Gợi ý (3)** vẽ mũi tên xanh nước đi tối ưu (3 lần/ván), **Đầu hàng** kết thúc ván với hiệu ứng cờ trắng, **Đi lại** lùi 1 nước (Hai người) hoặc 2 nước (Đấu máy), **Ván mới**, **Xoay bàn**, **Giao diện** (đổi giữa Gỗ Lim và Ngọc Bích).
+- **Trợ giúp & điều khiển**: **Gợi ý (3)** vẽ mũi tên xanh nước đi tối ưu (3 lần/ván), **Đầu hàng** kết thúc ván với hiệu ứng cờ trắng, **Đi lại** lùi 1 nước (Hai người) hoặc 2 nước (Đấu máy), **Ván mới**, **Xoay bàn**, **Sảnh chờ, Cờ Úp (Jieqi) & Đấu Online**
+- **Sảnh chờ "Đêm hội đèn lồng bên sông"**: nền Canvas 2D động theo theme (`Gỗ Lim` / `Ngọc Bích`), chọn trò chơi (Cờ Tướng / Cờ Úp), chọn chế độ, cài đặt hợp nhất (`xq_settings_v1`, lưu cả theme), tối ưu từ desktop tới màn hình 360 px.
+- **Cờ Úp (Jieqi)**: đầy đủ luật Cờ Úp ([`docs/RULES_JIEQI.md`](docs/RULES_JIEQI.md)) — 15 quân úp mỗi bên đi theo vị trí giả rồi lật khi di chuyển, Sĩ đi chéo toàn bàn, Tượng qua sông (vẫn cản mắt), bảng **Quân úp còn lại**, hiệu ứng lật quân, âm thanh lật theo ngũ cung, và máy **PIMC** chạy trong Web Worker (không bao giờ nhìn trộm quân úp).
+- **Đấu Online (Cờ Tướng & Cờ Úp)**: máy chủ Node + `ws` uy quyền ([`docs/PROTOCOL.md`](docs/PROTOCOL.md), [`docs/DEPLOY.md`](docs/DEPLOY.md)) hỗ trợ ghép trận nhanh, phòng riêng mã 6 ký tự + link mời `#/join/<CODE>`, đồng hồ đếm ngược, tự kết nối lại khi tải lại trang, xin hòa / đầu hàng / tái đấu đổi màu.
+
+**Giao diện** (đổi giữa Gỗ Lim và Ngọc Bích).
 - **Luyện tập**: bật **Đi tự do (luyện tập)** (trong chế độ Hai người) để đặt quân tự do không kiểm tra luật.
 - **Âm thanh**: thanh loa ở cuối bảng phải để tắt/bật âm thanh, bật/tắt giọng hô và chỉnh âm lượng.
 
@@ -206,9 +229,12 @@ Chi tiết quyết định thiết kế: [`docs/DECISIONS.md`](docs/DECISIONS.md
 ## Kiểm thử
 
 ```powershell
-node --test tests/                      # unit test: mô hình, luật (perft), AI, lịch sử ván
+node --test tests/core-import.test.js tests/rules.test.js tests/ai.test.js tests/jieqi.test.js tests/jieqiAi.test.js tests/online/server.test.js
 python tools/verify.py                  # kiểm tra giao diện, luật, review mode bằng Playwright
-python tools/verify_sound.py            # đo 18 âm thanh tổng hợp & chuỗi capture+check
+python tools/verify_lobby.py            # sảnh chờ, cài đặt, responsive 360 px, rò rỉ bộ nhớ
+python tools/verify_jieqi.py            # Cờ Úp: quân úp, lật quân, bảng quân còn lại, AI PIMC
+python tools/verify_online.py           # 2 trình duyệt: ghép trận, phòng riêng, kết nối lại, Cờ Úp online
+python tools/verify_sound.py            # đo 19 âm thanh tổng hợp (gồm reveal) & chuỗi capture+check
 python tools/verify_voice.py            # đo file giọng (cần đã chạy gen_voice.py)
 python tools/verify_fx.py               # hiệu ứng kết thúc ván (48 khung hình, rAF, skip)
 python tools/verify_engine.py           # Pikafish và cầu nối (cần đã chạy setup_engine.py)
@@ -255,6 +281,7 @@ Yêu cầu cho các script kiểm thử trình duyệt (`tools/verify*.py`): cà
 | [Pikafish](https://github.com/official-pikafish/Pikafish) | Engine mạnh | GNU GPL v3 | Không. Tải bằng `tools/setup_engine.py`; `engine/LICENSE` là bản GPL v3 |
 | Mạng NNUE của Pikafish | Hàm đánh giá của Pikafish | Điều khoản riêng của dự án Pikafish (không dùng thương mại khi chưa được phép) | Không, tải bằng script |
 | `edge-tts` | Tạo file giọng một lần | Thư viện LGPL; dịch vụ đọc của Microsoft theo điều khoản của Microsoft | Không chứa file giọng |
+| [`ws`](https://github.com/websockets/ws) | Máy chủ WebSocket online (`server/`) | MIT License | Chỉ khai báo trong `server/package.json` (`node_modules/` bị bỏ qua) |
 
 Nếu bạn phân phối game cùng với file chạy của Pikafish thì phải tuân thủ GPL v3 (kèm giấy phép và mã nguồn hoặc đường dẫn tới mã nguồn). Quân cờ, bàn cờ, âm thanh nhạc cụ và hiệu ứng trong repo đều do chính dự án tự vẽ và tự tổng hợp bằng code, không dùng tài nguyên bên ngoài.
 

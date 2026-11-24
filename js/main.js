@@ -11,6 +11,7 @@ import { Router, buildHash } from './app/router.js';
 import { createGameScreen } from './screens/gameScreen.js';
 import { createLobbyScreen } from './screens/lobbyScreen.js';
 import { createModeScreen } from './screens/modeScreen.js';
+import { openQuickMatchModal, openRoomModal } from './online/onlineModals.js';
 import {
   mountEffectsPage,
   mountVoicesPage,
@@ -151,7 +152,13 @@ async function init() {
           window.clearTimeout(tid);
         }
       }
-      return { ok: false, latencyMs: null, players: 0 };
+      return { ok: false, latencyMs: null, players: 0, onlineCount: 0 };
+    },
+    openQuickMatchModal(game, onlineInfo) {
+      openQuickMatchModal(ctx, game, onlineInfo);
+    },
+    openRoomModal(game, prefillCode, onlineInfo) {
+      openRoomModal(ctx, game, prefillCode, onlineInfo);
     },
   };
 

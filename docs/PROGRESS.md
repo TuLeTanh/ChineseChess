@@ -152,3 +152,13 @@
   - Built deterministic `render(t)` cinematics for **Win** (*Song kiếm giao phong*), **Lose** (*Bại trận*), **Resign** (white flag), and **Draw** (*Hạ kiếm*) with theme-aware accents (`Gỗ Lim` & `Ngọc Bích`), `?effects` preview page, `window.__fxSeek(ms)`, instant skip (`0.7 ms`), clean cancel on undo/new game, and `prefers-reduced-motion` fallback.
   - Visual review tuning: moved `<canvas>` above `<svg>` and bumped clash spark initial offset so `t=1160` clash sparks pop over crossed blades; added dark stroke outline on Vietnamese captions for contrast over bright steel; dismissed lingering live toasts on entering review; removed redundant font `<link rel="preload">` from `index.html` (0 warnings).
   - All gates green: `node --test` (`22/22` pass), `verify.py` (`errors=0 warnings=0`, captured `app_review.png` & `app_movelist_long.png`), `verify_sound.py` (`18/18`), `verify_voice.py` (`7/7`), `verify_fx.py` (`48` shots, `maxGap=33.4ms <= 50ms`, `0` idle rAF calls for 2 s, `errors=0 warnings=0`), `verify_engine.py` (`3,741,967 nps`, `0` leaked orphans).
+
+## Repo Hygiene, README, Screenshots, Read-Only Audit & GitHub Push
+- **Git & Hygiene**: Initialized `main`, added `.gitattributes`, updated `.gitignore` (excluding `engine/` binaries/NNUE, `assets/voice/*.mp3` + `manifest.json`, `preview/`, `logs/`, zips/caches while preserving READMEs, `engine/LICENSE`, and subset font + OFL license), moved `PROMPTS.md` -> `docs/PROMPTS.md`, scrubbed personal path from `docs/PROGRESS.md`, and created initial local commit.
+- **README & Curated Screenshots**: Optimized 10 curated PNGs into `docs/screenshots/` (`52–96 KB` each, `0.74 MB` total), rewrote `README.md` in Vietnamese with factually verified commands, tables, shortcuts, and link-checked relative paths.
+- **Read-Only Audit (`docs/AUDIT.md` & `tools/verify_races.py`)**:
+  - `verify_races.py`: **8/8** race-condition scenarios PASS (`0` console/page errors).
+  - 20 Pikafish-vs-Pikafish games (`100 ms/move`): `2` checkmate, `4` 3-fold repetition draws, `14` 160-ply cap.
+  - Cross-env touch tests (`390×844` & `820×1180`): tap-to-move works, side panel clipped due to `min-width: 960px`, `touch-action: auto` noted.
+  - Fresh-clone check into `<temp>/thư mục thử/ChineseChess`: JS engine works out of the box (1 expected `404` on absent `manifest.json`), `setup_engine.py` downloads & probes Pikafish cleanly, `/api/engine/info` reports `available: true`.
+  - Performance: `594 ms` first load, `61.5 KB` tracked `assets/`, flat `16.31 MB` heap across 100 plies and 10 new games, `0` idle rAF callbacks.

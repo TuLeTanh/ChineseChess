@@ -4528,3 +4528,57 @@ body.mode-effects .board-stage {
   gap: 8px;
   font-size: 12px;
 }
+
+/* --- Item 4: Archive / Replay View Cleanup (scoped to .is-replay-shell) --- */
+.is-replay-shell .replay-mode-pill {
+  background: rgba(24, 18, 13, 0.94);
+  color: #f9e5b4;
+  border: 1px solid rgba(217, 164, 65, 0.65);
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .board-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 8px 12px 10px;
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .game-top-nav {
+  position: static;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.is-replay-shell .replay-banner-slot {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.is-replay-shell .review-banner {
+  position: static;
+  transform: none;
+  margin: 0 auto;
+  max-width: 100%;
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .game-board-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+.is-replay-shell[data-layout="stack"] .replay-banner-slot,
+.is-replay-shell[data-layout="side"] .replay-banner-slot {
+  display: none;
+}
+.is-replay-shell[data-layout="stack"] .game-top-nav {
+  padding-right: 8px;
+}
+.is-replay-shell[data-layout="stack"] .replay-mode-pill {
+  font-size: 11px;
+  padding: 4px 10px;
+}

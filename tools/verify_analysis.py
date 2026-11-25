@@ -139,20 +139,72 @@ def main() -> int:
             )
             an_res = page.evaluate("window.__analysis")
             ply9 = next((m for m in an_res["moveAnnotations"] if m["ply"] == 9), None)
-            # Jump to ply 9 to show blunder arrow + eval bar + graph
+
+            # Item 1 & 2: Verify arrows for EVERY ply 0..10 start on occupied sideToMove piece
+            all_ply_arrows_ok = page.evaluate("""async () => {
+                const { Board } = await import('./js/model/board.js');
+                const { selectAnalysisPositionData } = await import('./js/analysis/math.js');
+                const an = window.__analysis;
+                const b = Board.fromFen(an.startFen);
+                const FILES = 'abcdefghi';
+                for (let ply = 0; ply <= an.moves.length; ply++) {
+                    const data = selectAnalysisPositionData(an, ply, null);
+                    if (!data) return false;
+                    for (const a of data.arrows) {
+                        const pc = b.at(a.from);
+                        if (!pc || pc.side !== b.sideToMove) return false;
+                    }
+                    if (ply < an.moves.length) {
+                        const m = an.moves[ply];
+                        b.applyMove({ x: FILES.indexOf(m[0]), y: 9 - Number(m[1]) }, { x: FILES.indexOf(m[2]), y: 9 - Number(m[3]) });
+                    }
+                }
+                return true;
+            }""")
+
+            # Click mistake item (ply 9 blunder) -> board must show ply 8 (BEFORE h0h7) with blue + red offset/dashed arrows
             page.locator('.an-mistake-item').first.click()
             page.wait_for_timeout(250)
+            view_after_click = page.evaluate("window.__view")
+            arrows_after_click = page.evaluate("window.__analysisArrows || []")
+            played_row_txt = page.locator('[data-testid="an-played-row"]').text_content() or ""
             arrow_cnt = page.locator("g.analysis-arrow").count()
             eval_vis = page.locator('[data-testid="eval-bar"]').is_visible()
+
+            # Item 4: Archive/replay cleanup assertions (pill unclipped, banner above board, new/undo hidden)
+            arch_ui = page.evaluate("""() => {
+                const pill = document.querySelector('.replay-mode-pill');
+                const banner = document.querySelector('.review-banner');
+                const svg = document.querySelector('svg.board-svg');
+                const newBtn = document.querySelector('#side-panel [data-action="new"]');
+                const undoBtn = document.querySelector('#side-panel [data-action="undo"]');
+                const pr = pill ? pill.getBoundingClientRect() : null;
+                const br = banner ? banner.getBoundingClientRect() : null;
+                const sr = svg ? svg.getBoundingClientRect() : null;
+                return {
+                    pillUnclipped: Boolean(pill && pill.scrollWidth <= pill.clientWidth + 2 && pr && pr.left >= 0),
+                    bannerAboveBoard: Boolean(!br || !sr || br.bottom <= sr.top + 2),
+                    newHidden: Boolean(!newBtn || getComputedStyle(newBtn).display === 'none'),
+                    undoHidden: Boolean(!undoBtn || getComputedStyle(undoBtn).display === 'none'),
+                };
+            }""")
+
             save_screenshot(page, "analysis_desktop.png", OUT_DIR)
-            # Also save close-up of the graph + summary card
             page.locator('[data-testid="analysis-panel"]').screenshot(path=str(OUT_DIR / "analysis_graph.png"))
             results["A_pikafish"] = {
-                "status": "PASS" if (ply9 and ply9["cls"] in ("blunder", "mistake") and arrow_cnt >= 1 and eval_vis) else "FAIL",
+                "status": "PASS" if (
+                    ply9 and ply9["cls"] in ("blunder", "mistake")
+                    and arrow_cnt >= 2 and eval_vis
+                    and all_ply_arrows_ok
+                    and view_after_click and view_after_click["ply"] == 8
+                    and "h0h7" in played_row_txt
+                    and all(arch_ui.values())
+                ) else "FAIL",
                 "engine": an_res.get("engineName"),
                 "ply9_cls": ply9["cls"] if ply9 else None,
-                "ply9_drop": ply9["winDrop"] if ply9 else None,
-                "arrows": arrow_cnt,
+                "view_ply": view_after_click["ply"] if view_after_click else None,
+                "arrows": len(arrows_after_click),
+                "arch_ui": arch_ui,
                 "red_acc": an_res["summary"]["redAccuracy"],
                 "black_acc": an_res["summary"]["blackAccuracy"],
             }

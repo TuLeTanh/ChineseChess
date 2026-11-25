@@ -118,13 +118,14 @@ export function createReplayScreen(ctx) {
       const isJieqi = record.variant === 'jieqi';
       let viewPly = board.history.length;
 
-      container.className = 'app-shell game-shell';
+      container.className = 'app-shell game-shell is-replay-shell';
       container.innerHTML = `
         <main id="board-stage" class="board-stage">
           <div class="game-top-nav">
             <button type="button" class="game-nav-btn" data-nav="back">${isShare ? '← Sảnh' : '← Thư viện'}</button>
-            <span class="replay-mode-pill">${isShare ? 'Đang xem ván chia sẻ' : 'Đang xem ván đã lưu'}</span>
+            <span class="replay-mode-pill" data-nowrap="1">${isShare ? 'Đang xem ván chia sẻ' : 'Đang xem ván đã lưu'}</span>
           </div>
+          <div class="replay-banner-slot"></div>
           <div class="game-board-host"></div>
           <div class="move-strip-host"></div>
           <nav class="mobile-controls-bar" data-testid="mobile-controls" aria-label="Điều khiển xem lại">
@@ -227,6 +228,11 @@ export function createReplayScreen(ctx) {
       });
       boardView.setLocked(true);
       boardView.setAllowContinue(true);
+      // Dock review banner above the board so it never covers the top file labels
+      const bannerSlot = container.querySelector('.replay-banner-slot');
+      if (bannerSlot && boardView.reviewBanner) {
+        bannerSlot.appendChild(boardView.reviewBanner);
+      }
 
       sidePanel = new SidePanel({
         container: sidePanelEl,
@@ -273,11 +279,19 @@ export function createReplayScreen(ctx) {
         onVolumeChange: (v) => ctx.setVolume(v),
       });
 
-      // Customize sidePanel for read-only archive review
+      // Customize sidePanel for read-only archive review: hide "Ván mới" and "Đi lại"
       if (sidePanel.practiceWrap) sidePanel.practiceWrap.style.display = 'none';
       const newBtn = sidePanelEl.querySelector('[data-action="new"]');
-      if (newBtn) newBtn.disabled = true;
-      if (sidePanel.undoBtn) sidePanel.undoBtn.disabled = true;
+      if (newBtn) {
+        newBtn.disabled = true;
+        newBtn.hidden = true;
+        newBtn.style.display = 'none';
+      }
+      if (sidePanel.undoBtn) {
+        sidePanel.undoBtn.disabled = true;
+        sidePanel.undoBtn.hidden = true;
+        sidePanel.undoBtn.style.display = 'none';
+      }
       sidePanel.redCard.querySelector('.player-name').textContent = record.red?.name || 'Đỏ';
       sidePanel.blackCard.querySelector('.player-name').textContent = record.black?.name || 'Đen';
 

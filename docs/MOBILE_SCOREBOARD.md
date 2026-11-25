@@ -37,3 +37,12 @@
 | `webkit.WK_T1` | **PASS** | ply=1 |
 | `webkit.WK_T10` | **PASS** | sfx_events=1 |
 | `webkit.console_errors` | **PASS** | count=0 |
+
+## Online Dialogs & Two-Phone E2E — Baseline (before)
+
+| Check ID | Status | Key Numbers / Notes |
+|---|---|---|
+| `dialogs.crawler` | **FAIL** | checked=90, failures=72 (`room_join scrollW=1480` vs `clientW=318`, `INPUT.code-box` out of bounds, `mini-seg-btn` 26 px < 44 px, `ai-level-select` 28 px, `export` buttons 40 px) |
+| `dialogs.offline_btns` | **FAIL** | 6+ hits: `.mode-offline-actions` visible while online (missing `[hidden] { display: none !important }`) |
+| `online_mobile.S1..S10` | **FAIL** | S1 resign timeout / S5 rematch cancel+decline+opponent-left not implemented |
+

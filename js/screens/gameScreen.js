@@ -143,14 +143,14 @@ export function createGameScreen(ctx) {
       const levelName = (AI_LEVELS.find((l) => l.id === aiLevel) || AI_LEVELS[1]).name;
       const topChipText =
         `${variant.id === 'coup' ? 'Cờ Úp' : 'Cờ Tướng'} · ` +
-        (mode === 'ai' ? `Đấu máy · ${levelName}` : mode === 'online' ? 'Trực tuyến' : 'Hai người');
+        (mode === 'ai' ? levelName : mode === 'online' ? 'Online' : '2 người');
 
       container.className = 'app-shell game-shell';
       container.innerHTML = `
         <main id="board-stage" class="board-stage">
           <div class="game-top-nav">
             <button type="button" class="game-nav-btn" data-nav="lobby" title="Về sảnh">← Sảnh</button>
-            <div class="game-top-chip" data-testid="top-mode-chip">${topChipText}</div>
+            <div class="game-top-chip" data-testid="top-mode-chip" data-nowrap="1">${topChipText}</div>
             <div class="game-top-right">
               <button type="button" class="game-nav-btn game-top-save" data-testid="top-save-btn" aria-label="Lưu hoặc xuất ván cờ" title="Lưu / Xuất">💾</button>
               <button type="button" class="game-nav-btn" data-nav="settings" aria-label="Cài đặt" title="Cài đặt">⚙</button>
@@ -185,19 +185,22 @@ export function createGameScreen(ctx) {
       container.querySelector('[data-testid="top-save-btn"]').addEventListener('click', openSaveExport);
 
       container.querySelector('[data-nav="lobby"]').addEventListener('click', () => {
-        if (controller && controller.isGameInProgress()) {
+        const inProgress =
+          mode === 'online'
+            ? Boolean(onlineBridge && !onlineBridge.over)
+            : Boolean(controller && controller.isGameInProgress());
+        if (inProgress) {
           modalRoot.hidden = false;
           modalRoot.innerHTML = `
             <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="leave-title">
               <div class="modal-card">
                 <h3 id="leave-title">Rời ván cờ?</h3>
-                <p>${
-                  mode === 'online'
-                    ? 'Rời trận sẽ bị xử thua.'
-                    : ctx.settingsStore.get().storage?.autosaveInProgress !== false
-                      ? 'Ván sẽ được lưu để tiếp tục sau.'
-                      : 'Ván hiện tại sẽ mất.'
-                }</p>
+                <p>${mode === 'online'
+              ? 'Rời trận sẽ bị xử thua.'
+              : ctx.settingsStore.get().storage?.autosaveInProgress !== false
+                ? 'Ván sẽ được lưu để tiếp tục sau.'
+                : 'Ván hiện tại sẽ mất.'
+            }</p>
                 <div class="modal-actions">
                   <button type="button" class="pill-btn modal-cancel">Ở lại</button>
                   <button type="button" class="pill-btn pill-btn-danger modal-leave-ok">Về sảnh</button>
@@ -210,7 +213,11 @@ export function createGameScreen(ctx) {
             modalRoot.innerHTML = '';
           });
           modalRoot.querySelector('.modal-leave-ok').addEventListener('click', () => {
-            flushAutosaveNow();
+            if (mode === 'online' && onlineBridge && !onlineBridge.over) {
+              onlineBridge.conn?.send('game.resign', {});
+            } else {
+              flushAutosaveNow();
+            }
             modalRoot.hidden = true;
             modalRoot.innerHTML = '';
             ctx.router.navigate('/');
@@ -434,7 +441,7 @@ export function createGameScreen(ctx) {
             const lvl = (AI_LEVELS.find((l) => l.id === controller.aiLevel) || AI_LEVELS[1]).name;
             topChipEl.textContent =
               `${variant.id === 'coup' ? 'Cờ Úp' : 'Cờ Tướng'} · ` +
-              (controller.mode === 'ai' ? `Đấu máy · ${lvl}` : controller.mode === 'online' ? 'Trực tuyến' : 'Hai người');
+              (controller.mode === 'ai' ? lvl : controller.mode === 'online' ? 'Online' : '2 người');
           }
         },
       });
@@ -744,7 +751,7 @@ export function createGameScreen(ctx) {
         boardView.dispose();
         boardView = null;
       }
-      ctx.sfx.voice.onCaption = () => {};
+      ctx.sfx.voice.onCaption = () => { };
     },
   };
 }

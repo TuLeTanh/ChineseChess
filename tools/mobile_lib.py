@@ -41,7 +41,9 @@ DEVICES: list[DeviceSpec] = [
     # Portrait phones
     DeviceSpec("320x568", 320, 568, 2.0, True, True, "phone_portrait"),
     DeviceSpec("360x640", 360, 640, 3.0, True, True, "phone_portrait"),
+    DeviceSpec("360x740", 360, 740, 3.0, True, True, "phone_portrait"),
     DeviceSpec("375x667", 375, 667, 2.0, True, True, "phone_portrait"),
+    DeviceSpec("inapp_390x700", 390, 700, 3.0, True, True, "phone_portrait"),
     DeviceSpec("390x844", 390, 844, 3.0, True, True, "phone_portrait"),
     DeviceSpec("412x915", 412, 915, 2.6, True, True, "phone_portrait"),
     DeviceSpec("430x932", 430, 932, 3.0, True, True, "phone_portrait"),
@@ -159,6 +161,14 @@ class CdpTouch:
     def __init__(self, page):
         self.page = page
         self.cdp = page.context.new_cdp_session(page)
+        self._next_id = 1
+
+    def _alloc_id(self, tid: int | None) -> int:
+        if tid is not None:
+            return tid
+        val = self._next_id
+        self._next_id = (self._next_id % 1000) + 1
+        return val
 
     def _pt(self, x: float, y: float, tid: int = 0) -> dict[str, Any]:
         return {
@@ -195,7 +205,8 @@ class CdpTouch:
         )
 
     def tap(self, x: float, y: float, hold_ms: int = 40) -> None:
-        self.start(x, y, 0)
+        tid = self._alloc_id(None)
+        self.start(x, y, tid)
         if hold_ms > 0:
             self.page.wait_for_timeout(hold_ms)
         self.end()
@@ -211,13 +222,14 @@ class CdpTouch:
         end_touch: bool = True,
         on_step=None,
     ) -> None:
-        self.start(x0, y0, 0)
+        tid = self._alloc_id(None)
+        self.start(x0, y0, tid)
         self.page.wait_for_timeout(max(8, step_ms))
         for i in range(1, steps + 1):
             t = i / steps
             x = x0 + (x1 - x0) * t
             y = y0 + (y1 - y0) * t
-            self.move(x, y, 0)
+            self.move(x, y, tid)
             if on_step:
                 on_step(i, x, y)
             if step_ms > 0:

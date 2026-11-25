@@ -2798,8 +2798,10 @@ body.mode-effects .board-stage {
 
 .online-reconnect-overlay[hidden],
 .online-disconnect-banner[hidden],
-.online-draw-toast[hidden] {
-  display: none;
+.online-draw-toast[hidden],
+.mode-bar[hidden],
+.mode-bar .segmented[hidden] {
+  display: none !important;
 }
 
 .online-reconnect-box {

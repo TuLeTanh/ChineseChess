@@ -361,6 +361,8 @@ export class SidePanel {
   _syncAiCardsAndButtons(disableAiActions = false) {
     const vsAi = this.mode === 'ai';
     const pfAvail = !this.isJieqi && Boolean(this.pikafishInfo && this.pikafishInfo.available);
+    if (this.modeBarEl) this.modeBarEl.hidden = !vsAi;
+    if (this.modeSegmentedEl) this.modeSegmentedEl.hidden = true;
     this.aiConfigRow.hidden = !vsAi;
     this.engineRow.hidden = !vsAi || !pfAvail || this.isJieqi;
     this.engineHint.hidden = !vsAi || pfAvail || this.isJieqi;
@@ -549,6 +551,8 @@ export class SidePanel {
 
     this.variantHeaderEl = this.container.querySelector('.variant-header-pill');
     this.poolPanelEl = this.container.querySelector('.jieqi-pool-panel');
+    this.modeBarEl = this.container.querySelector('.mode-bar');
+    this.modeSegmentedEl = this.container.querySelector('.mode-bar .segmented');
     this.modePvpBtn = this.container.querySelector('[data-mode="pvp"]');
     this.modeAiBtn = this.container.querySelector('[data-mode="ai"]');
     this.aiConfigRow = this.container.querySelector('.ai-config-row');

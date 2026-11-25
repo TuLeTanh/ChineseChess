@@ -164,12 +164,12 @@ def main():
             ok7 = v["total"] == 2
             results.append(("Switch level mid-search", ok7, f"total={v['total']}"))
 
-            # 8. Mode switch ai -> pvp -> ai (worker terminate & respawn)
+            # 8. Mode switch ai -> local -> ai via route (worker terminate & respawn)
             page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
-            page.locator("[data-mode='pvp']").click()
-            page.wait_for_timeout(300)
-            page.locator("[data-mode='ai']").click()
+            page.goto(f"{base}/?test#/play/cotuong/local", wait_until="networkidle")
+            page.wait_for_timeout(200)
+            page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
             page.wait_for_timeout(150)
             click_move(page, 7, 7, 4, 7)
             page.wait_for_function("() => window.__view && window.__view.total >= 2", timeout=8000)

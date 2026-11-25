@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 import subprocess
 import sys
 import time
@@ -24,7 +25,14 @@ from mobile_lib import (
     save_screenshot,
 )
 
-PORT = 8797
+
+def _pick_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
+
+
+PORT = _pick_free_port()
 BASE = f"http://127.0.0.1:{PORT}"
 START_FEN = "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1"
 MOVES_10 = ["h2e2", "h9g7", "h0g2", "i9h9", "i0h0", "b7e7", "b0c2", "b9c7", "h0h7", "h9h7"]
@@ -34,13 +42,13 @@ def _start_server() -> subprocess.Popen:
     proc = subprocess.Popen(
         [sys.executable, str(ROOT / "tools" / "server.py"), "--port", str(PORT)],
         cwd=str(ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
-    deadline = time.monotonic() + 12.0
+    deadline = time.monotonic() + 15.0
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(f"{BASE}/api/engine/info", timeout=2) as r:
+            with urllib.request.urlopen(f"{BASE}/index.html", timeout=2) as r:
                 if r.status == 200:
                     return proc
         except Exception:
@@ -73,7 +81,8 @@ def run_suite(baseline: bool = False) -> dict[str, Any]:
             errs = attach_error_listener(page)
 
             # Seed finished archive game
-            page.goto(f"{BASE}/?test#/", wait_until="networkidle")
+            page.goto(f"{BASE}/?test#/", wait_until="domcontentloaded")
+            page.wait_for_function("() => Boolean(window.__gameStore)", timeout=10000)
             rec = {
                 "schemaVersion": 1, "id": "p-arch-xq",
                 "createdAt": "2026-11-25T10:00:00.000Z", "updatedAt": "2026-11-25T10:00:00.000Z",

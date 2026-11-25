@@ -1670,6 +1670,30 @@ export class BoardView {
           fill: color,
         })
       );
+      if (opts.badge) {
+        const mx = (startX + endX) / 2;
+        const my = (startY + endY) / 2;
+        g.appendChild(
+          svgEl('circle', {
+            cx: mx.toFixed(1),
+            cy: my.toFixed(1),
+            r: 14,
+            fill: '#14100C',
+            stroke: color,
+            'stroke-width': 2.5,
+          })
+        );
+        const txt = svgEl('text', {
+          x: mx.toFixed(1),
+          y: (my + 5).toFixed(1),
+          'text-anchor': 'middle',
+          fill: '#FFFFFF',
+          'font-size': 16,
+          'font-weight': 700,
+        });
+        txt.textContent = String(opts.badge);
+        g.appendChild(txt);
+      }
       this.layerSelection.appendChild(g);
     };
 
@@ -1679,6 +1703,7 @@ export class BoardView {
           kind: a.kind,
           offset: a.offset,
           dashed: a.dashed,
+          badge: a.badge,
         });
       }
     }

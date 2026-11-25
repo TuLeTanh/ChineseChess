@@ -16,6 +16,7 @@ import {
   openContinueFromPositionModal,
   saveRecordWithPrunePrompt,
 } from '../ui/saveModals.js';
+import { openSettingsModal } from '../ui/settingsModal.js';
 import { leakTracker } from '../app/router.js';
 import { LayoutManager } from '../ui/layoutManager.js';
 import { MoveStrip } from '../ui/moveStrip.js';
@@ -124,8 +125,13 @@ export function createReplayScreen(ctx) {
           <div class="game-top-nav">
             <button type="button" class="game-nav-btn" data-nav="back">${isShare ? '← Sảnh' : '← Thư viện'}</button>
             <span class="replay-mode-pill" data-nowrap="1">${isShare ? 'Đang xem ván chia sẻ' : 'Đang xem ván đã lưu'}</span>
+            ${isShare ? `<button type="button" class="game-nav-btn" data-arch="save" title="Lưu vào thư viện">💾 Lưu</button>` : ''}
           </div>
           <div class="replay-banner-slot"></div>
+          <div class="pv-preview-banner" data-testid="pv-preview-banner" hidden>
+            <span class="pv-preview-label">Đang xem phương án của máy</span>
+            <button type="button" class="mini-seg-btn" data-action="exit-pv-preview">Thoát</button>
+          </div>
           <div class="game-board-host"></div>
           <div class="move-strip-host"></div>
           <nav class="mobile-controls-bar" data-testid="mobile-controls" aria-label="Điều khiển xem lại">
@@ -142,15 +148,51 @@ export function createReplayScreen(ctx) {
       const stage = container.querySelector('.game-board-host');
       const moveStripHost = container.querySelector('.move-strip-host');
       const sidePanelEl = container.querySelector('#side-panel');
+      const pvPreviewBanner = container.querySelector('[data-testid="pv-preview-banner"]');
+      pvPreviewBanner?.querySelector('[data-action="exit-pv-preview"]')?.addEventListener('click', () => {
+        analysisPanel?.clearPreview();
+      });
+
+      const openAnalysis = () => {
+        if (!analysisPanel || !sidePanel || !sidePanel.getPolicy().showAnalysis) return;
+        sidePanel.setAnalysisMode(true);
+        if (bottomSheet && bottomSheet.enabled) {
+          bottomSheet.open('full');
+          bottomSheet.selectTab('analysis');
+        }
+        analysisPanel.setActive(true);
+      };
+      const closeAnalysis = () => {
+        if (analysisPanel?.previewActive) analysisPanel.clearPreview();
+        analysisPanel?.setActive(false);
+        sidePanel?.setAnalysisMode(false);
+        if (bottomSheet && bottomSheet.enabled) {
+          bottomSheet.selectTab('moves');
+          bottomSheet.close();
+        }
+      };
+
+      const saveShareTopBtn = container.querySelector('[data-arch="save"]');
+      if (saveShareTopBtn) {
+        saveShareTopBtn.addEventListener('click', async () => {
+          const res = await saveRecordWithPrunePrompt(ctx, { ...record, source: 'import' });
+          if (res.ok) {
+            saveShareTopBtn.disabled = true;
+            saveShareTopBtn.textContent = 'Đã lưu ✓';
+          }
+        });
+      }
+
       container.querySelector('.mobile-controls-bar').addEventListener('click', (ev) => {
-        const b = ev.target.closest('[data-rev-act]');
+        const b = ev.target.closest('[data-rev-act], [data-maction]');
         if (!b) return;
-        const a = b.dataset.revAct;
+        const a = b.dataset.revAct || b.dataset.maction;
         if (a === 'start') goToPly(0);
         else if (a === 'prev') goToPly(viewPly - 1);
         else if (a === 'play') toggleAuto();
         else if (a === 'next') goToPly(viewPly + 1);
         else if (a === 'live') goToPly(board.history.length);
+        else if (a === 'analyze') openAnalysis();
       });
 
       container.querySelector('[data-nav="back"]').addEventListener('click', () => {
@@ -243,7 +285,9 @@ export function createReplayScreen(ctx) {
         theme: ctx.getTheme(),
         variant: isJieqi ? 'coup' : 'cotuong',
         showPool: ctx.settingsStore.get().jieqi.showPool,
-        mode: 'pvp',
+        mode: record.mode || 'local',
+        isArchive: true,
+        isUnfinishedArchive: record.result === 'unfinished',
         muted: ctx.sfx.isMuted(),
         volume: ctx.sfx.getVolume(),
         voiceEnabled: ctx.sfx.isVoiceEnabled(),
@@ -261,6 +305,23 @@ export function createReplayScreen(ctx) {
         onAiLevelChange: () => {},
         onHint: () => {},
         onResign: () => {},
+        onOpenAnalysis: () => openAnalysis(),
+        onOpenSettings: (triggerEl) => openSettingsModal(ctx, 'appearance', triggerEl),
+        onReturnLive: () => goToPly(board.history.length),
+        onContinueHere: () => {
+          openContinueFromPositionModal(ctx, {
+            variant: record.variant,
+            fen: currentViewFen(),
+            pool: currentViewPool(),
+          });
+        },
+        onExportGame: () => {
+          openExportModal(ctx, {
+            record,
+            currentFen: currentViewFen(),
+            allowSaveToLibrary: isShare,
+          });
+        },
         onSelectPly: (ply, opts) => {
           if (analysisPanel && !opts?.isScrub) {
             analysisPanel.selectMove(ply, opts);
@@ -281,73 +342,37 @@ export function createReplayScreen(ctx) {
         onVolumeChange: (v) => ctx.setVolume(v),
       });
 
-      // Customize sidePanel for read-only archive review: hide "Ván mới" and "Đi lại"
-      if (sidePanel.practiceWrap) sidePanel.practiceWrap.style.display = 'none';
-      const newBtn = sidePanelEl.querySelector('[data-action="new"]');
-      if (newBtn) {
-        newBtn.disabled = true;
-        newBtn.hidden = true;
-        newBtn.style.display = 'none';
-      }
-      if (sidePanel.undoBtn) {
-        sidePanel.undoBtn.disabled = true;
-        sidePanel.undoBtn.hidden = true;
-        sidePanel.undoBtn.style.display = 'none';
-      }
       sidePanel.redCard.querySelector('.player-name').textContent = record.red?.name || 'Đỏ';
       sidePanel.blackCard.querySelector('.player-name').textContent = record.black?.name || 'Đen';
-
-      // Archive action bar (Chơi tiếp từ đây / Lưu vào thư viện / Xuất)
-      const archiveBar = document.createElement('div');
-      archiveBar.className = 'archive-actions-bar';
-      archiveBar.innerHTML = `
-        <div class="archive-result-pill"></div>
-        <div class="archive-btns-row">
-          <button type="button" class="pill-btn pill-btn-compact pill-btn-gold" data-arch="continue">Chơi tiếp từ đây</button>
-          ${isShare ? `<button type="button" class="pill-btn pill-btn-compact" data-arch="save">Lưu vào thư viện</button>` : ''}
-          <button type="button" class="pill-btn pill-btn-compact" data-arch="export">Xuất</button>
-        </div>
-      `;
-      archiveBar.querySelector('.archive-result-pill').textContent = formatResultVi(record);
-      archiveBar.querySelector('[data-arch="continue"]').addEventListener('click', () => {
-        openContinueFromPositionModal(ctx, {
-          variant: record.variant,
-          fen: currentViewFen(),
-          pool: currentViewPool(),
-        });
-      });
-      const saveShareBtn = archiveBar.querySelector('[data-arch="save"]');
-      if (saveShareBtn) {
-        saveShareBtn.addEventListener('click', async () => {
-          const res = await saveRecordWithPrunePrompt(ctx, { ...record, source: 'import' });
-          if (res.ok) {
-            saveShareBtn.disabled = true;
-            saveShareBtn.textContent = 'Đã lưu ✓';
-          }
-        });
+      if (sidePanel.compactStatusEl) {
+        sidePanel.compactStatusEl.textContent = formatResultVi(record);
       }
-      archiveBar.querySelector('[data-arch="export"]').addEventListener('click', () => {
-        openExportModal(ctx, {
-          record,
-          currentFen: currentViewFen(),
-          allowSaveToLibrary: isShare,
-        });
-      });
 
-      const ctrlGrid = sidePanelEl.querySelector('.controls-grid');
-      if (ctrlGrid) ctrlGrid.parentNode.insertBefore(archiveBar, ctrlGrid);
+      // Add mobile analyze button if P4 policy allows analysis
+      const allowArchiveAnalysis = sidePanel.getPolicy().showAnalysis;
+      if (allowArchiveAnalysis) {
+        const mctrl = container.querySelector('.mobile-controls-bar');
+        if (mctrl) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'mctrl-btn';
+          btn.dataset.maction = 'analyze';
+          btn.innerHTML = '<span class="mctrl-icon" aria-hidden="true">📊</span><span class="mctrl-label" data-nowrap="1">Phân tích</span>';
+          mctrl.appendChild(btn);
+        }
+      }
 
-      // Mount EvalBar + AnalysisPanel (Cờ Tướng full support; Cờ Úp displays unsupported notice)
+      // Mount EvalBar + AnalysisPanel (Cờ Tướng full support; unfinished local allowed per P4)
       evalBar = new EvalBar({ container: stage });
       boardView.onFlipChange = (flipped) => {
         container.classList.toggle('is-flipped', Boolean(flipped));
         if (evalBar) evalBar.setFlipped(flipped);
       };
-      if (sidePanel.analysisTabBtn) sidePanel.analysisTabBtn.hidden = false;
       const anPane = sidePanelEl.querySelector('.sheet-pane[data-spane="analysis"]');
       if (anPane) anPane.hidden = false;
       sidePanelEl.classList.add('has-analysis');
 
+      const blockedUnfinished = record.result === 'unfinished' && record.mode !== 'local';
       const analysisHost = sidePanel.analysisPaneHost || sidePanelEl;
       analysisPanel = new AnalysisPanel({
         ctx,
@@ -358,8 +383,28 @@ export function createReplayScreen(ctx) {
         startFen: record.start.fen,
         moves: (record.moves || []).map((m) => m.m),
         variant: record.variant,
-        isUnfinished: record.result === 'unfinished',
+        isUnfinished: blockedUnfinished,
         onSelectPly: (ply, opts) => goToPly(ply, opts),
+        onClose: () => closeAnalysis(),
+        onPreviewFen: (fen, pvArrows) => {
+          if (fen) {
+            if (pvPreviewBanner) pvPreviewBanner.hidden = false;
+            boardView.setReviewState({
+              active: true,
+              viewPly,
+              totalPlies: board.history.length,
+              hasNewMoves: false,
+              viewBoard: Board.fromFen(fen),
+              lastMove: null,
+              transition: 'instant',
+              reducedMotion: true,
+            });
+            boardView.setAnalysisArrows(pvArrows || []);
+          } else {
+            if (pvPreviewBanner) pvPreviewBanner.hidden = true;
+            goToPly(viewPly, { isScrub: true });
+          }
+        },
         onTryMove: (ply, iccs) => {
           if (isJieqi || !iccs || iccs.length !== 4) return;
           const b = Board.fromFen(board.snapshotAt(ply).fen);
@@ -377,12 +422,15 @@ export function createReplayScreen(ctx) {
       goToPly(board.history.length, { isScrub: true });
 
       analysisPanel.loadCached().then((cached) => {
-        if (disposed || isJieqi || record.result === 'unfinished') return;
-        if (!cached && route.query?.analyze === '1') {
-          if (route.query?.auto === '1') {
-            analysisPanel.start({ preset: route.query?.preset || 'fast', forceEngine: route.query?.engine });
-          } else {
-            analysisPanel.openSetupModal();
+        if (disposed || isJieqi || blockedUnfinished) return;
+        if (route.query?.analyze === '1') {
+          openAnalysis();
+          if (!cached) {
+            if (route.query?.auto === '1') {
+              analysisPanel.start({ preset: route.query?.preset || 'fast', forceEngine: route.query?.engine });
+            } else {
+              analysisPanel.openSetupModal();
+            }
           }
         }
       });
@@ -433,6 +481,14 @@ export function createReplayScreen(ctx) {
 
       onKeyDown = (ev) => {
         if (ctx.modalRoot && !ctx.modalRoot.hidden) return;
+        if (ev.key === 'Escape') {
+          if (analysisPanel && analysisPanel.previewActive) {
+            analysisPanel.clearPreview();
+          } else if (sidePanel && sidePanel.analysisOpen) {
+            closeAnalysis();
+          }
+          return;
+        }
         if (ev.key === 'ArrowLeft') { ev.preventDefault(); goToPly(viewPly - 1); }
         else if (ev.key === 'ArrowRight') { ev.preventDefault(); goToPly(viewPly + 1); }
         else if (ev.key === 'Home') { ev.preventDefault(); goToPly(0); }
@@ -482,6 +538,7 @@ export function createReplayScreen(ctx) {
         boardView = null;
       }
       if (sidePanel) {
+        sidePanel.closeOverflowMenu?.();
         sidePanel.closeModal();
         sidePanel = null;
       }

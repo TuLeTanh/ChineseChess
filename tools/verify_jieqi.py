@@ -146,8 +146,9 @@ def main():
             assert "không cho đi lại" in after_counts["undoTitle"].lower(), f"Unexpected undo title: {after_counts['undoTitle']}"
             assert after_counts["revealBadges"] >= 1, "Expected reveal badge in move list"
 
-            # 3. Test Hint button in Cờ Úp
-            hint_btn = page.locator('[data-action="hint"]')
+            # 3. Test Hint button in Cờ Úp (now inside "⋯" overflow menu)
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            hint_btn = page.locator('[data-mitem="hint"]')
             assert not hint_btn.is_disabled(), "Hint should be enabled on player's turn"
             hint_btn.click()
             page.wait_for_selector(".hint-arrow", timeout=8000)

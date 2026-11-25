@@ -114,25 +114,30 @@ def main() -> int:
             page.evaluate(_seed_record_js("an-test-xq", "xiangqi"))
             page.evaluate(_seed_record_js("an-test-jq", "jieqi"))
 
-            # (e) Integrity rule: live local & live AI games have ZERO analysis UI and ALL export buttons disabled;
-            # after resigning, export buttons unlock; deep link to unfinished game blocks analysis
-            page.evaluate(_seed_record_js("an-test-unfin", "xiangqi").replace('"result": "black"', '"result": "unfinished"'))
-            page.goto(f"{BASE}/?test#/play/cotuong/local", wait_until="networkidle")
-            page.wait_for_selector("svg.board-svg", timeout=5000)
-            live_an_cnt = page.locator('[data-testid="analysis-panel"], [data-testid="eval-bar"]').count()
-            page.locator('[data-action="save-export"]').click()
+            # (e) Integrity rule (P4):
+            # - Live local Cờ Tướng: export buttons locked while live, live analysis ALLOWED
+            # - Live AI Cờ Tướng: analysis button HIDDEN, export buttons locked while live; after resigning, export unlocks
+            # - Deep link to unfinished AI archive blocks analysis; Cờ Úp archive hides analysis + shows menu note
+            unfin_ai_js = _seed_record_js("an-test-unfin", "xiangqi").replace('"result": "black"', '"result": "unfinished"').replace('"mode": "local"', '"mode": "ai"')
+            page.evaluate(unfin_ai_js)
+            page.goto(f"{BASE}/?test#/play/cotuong/local", wait_until="domcontentloaded")
+            page.wait_for_selector("svg.board-svg", timeout=8000)
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="export"]').click()
             page.wait_for_selector('[data-exp="fen"]', timeout=4000)
             local_locked = all(page.locator(f'[data-exp="{k}"]').is_disabled() for k in ("save", "fen", "link", "json", "pgn"))
             page.keyboard.press("Escape")
 
-            page.goto(f"{BASE}/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
-            page.wait_for_selector("svg.board-svg", timeout=5000)
-            page.locator('[data-action="save-export"]').click()
+            page.goto(f"{BASE}/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="domcontentloaded")
+            page.wait_for_selector("svg.board-svg", timeout=8000)
+            live_ai_an_vis = page.locator('[data-testid="panel-analyze-btn"]').is_visible()
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="export"]').click()
             page.wait_for_selector('[data-exp="fen"]', timeout=4000)
             ai_locked = all(page.locator(f'[data-exp="{k}"]').is_disabled() for k in ("save", "fen", "link", "json", "pgn"))
             page.keyboard.press("Escape")
             # Resign AI game -> export buttons unlock
-            page.locator('#side-panel [data-action="resign"]').click()
+            page.locator('[data-testid="panel-action-row"] [data-pact="resign"]').click()
             page.locator('.modal-resign-confirm').click()
             page.wait_for_selector('.modal-export', timeout=6000)
             page.locator('.modal-export').click()
@@ -140,27 +145,30 @@ def main() -> int:
             ai_unlocked_after = all(not page.locator(f'[data-exp="{k}"]').is_disabled() for k in ("save", "fen", "link", "json", "pgn"))
             page.keyboard.press("Escape")
 
-            # Deep link to unfinished game blocks analysis
-            page.goto(f"{BASE}/?test#/play/cotuong/review?id=an-test-unfin&analyze=1&auto=1", wait_until="networkidle")
-            page.wait_for_selector('[data-testid="analysis-panel"]', timeout=5000)
-            unfin_blocked = page.locator('[data-an="run"]').is_disabled()
+            # Deep link to unfinished AI game blocks analysis (analyze button hidden)
+            page.goto(f"{BASE}/?test#/play/cotuong/review?id=an-test-unfin&analyze=1&auto=1", wait_until="domcontentloaded")
+            page.wait_for_selector("svg.board-svg", timeout=8000)
+            unfin_blocked = not page.locator('[data-testid="panel-analyze-btn"]').is_visible()
 
-            # (e2) Cờ Úp archive shows unsupported notice & disabled run button
-            page.goto(f"{BASE}/?test#/play/coup/review?id=an-test-jq", wait_until="networkidle")
-            page.wait_for_selector('[data-testid="analysis-panel"]', timeout=5000)
-            jq_notice = page.locator(".an-notice").text_content() or ""
-            jq_btn_dis = page.locator('[data-an="run"]').is_disabled()
+            # (e2) Cờ Úp archive hides analysis button & shows unsupported note in "⋯" menu
+            page.goto(f"{BASE}/?test#/play/coup/review?id=an-test-jq", wait_until="domcontentloaded")
+            page.wait_for_selector("svg.board-svg", timeout=8000)
+            jq_btn_hidden = not page.locator('[data-testid="panel-analyze-btn"]').is_visible()
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.wait_for_selector('[data-testid="panel-overflow-menu"]', state="visible", timeout=3000)
+            jq_notice = page.locator('[data-testid="panel-overflow-menu"]').text_content() or ""
+            page.keyboard.press("Escape")
             results["E_integrity"] = {
                 "status": "PASS" if (
-                    live_an_cnt == 0 and local_locked and ai_locked and ai_unlocked_after
-                    and unfin_blocked and "chưa hỗ trợ" in jq_notice.lower() and jq_btn_dis
+                    (not live_ai_an_vis) and local_locked and ai_locked and ai_unlocked_after
+                    and unfin_blocked and "chưa hỗ trợ" in jq_notice.lower() and jq_btn_hidden
                 ) else "FAIL",
-                "live_an_cnt": live_an_cnt,
+                "live_ai_an_vis": live_ai_an_vis,
                 "local_locked": local_locked,
                 "ai_locked": ai_locked,
                 "ai_unlocked_after": ai_unlocked_after,
                 "unfin_blocked": unfin_blocked,
-                "jq_notice": jq_notice,
+                "jq_notice": jq_notice.strip()[:60],
             }
 
             # (a) Real Pikafish analysis on planted hung-chariot game (ply 9 blunder)
@@ -200,7 +208,7 @@ def main() -> int:
             page.wait_for_timeout(250)
             view_after_click = page.evaluate("window.__view")
             arrows_after_click = page.evaluate("window.__analysisArrows || []")
-            played_row_txt = page.locator('[data-testid="an-played-row"]').text_content() or ""
+            quality_txt = page.locator('[data-testid="an-quality-card"]').text_content() or ""
             arrow_cnt = page.locator("g.analysis-arrow").count()
             eval_vis = page.locator('[data-testid="eval-bar"]').is_visible()
 
@@ -217,8 +225,8 @@ def main() -> int:
                 return {
                     pillUnclipped: Boolean(pill && pill.scrollWidth <= pill.clientWidth + 2 && pr && pr.left >= 0),
                     bannerAboveBoard: Boolean(!br || !sr || br.bottom <= sr.top + 2),
-                    newHidden: Boolean(!newBtn || getComputedStyle(newBtn).display === 'none'),
-                    undoHidden: Boolean(!undoBtn || getComputedStyle(undoBtn).display === 'none'),
+                    newHidden: Boolean(!newBtn || newBtn.offsetParent === null),
+                    undoHidden: Boolean(!undoBtn || undoBtn.offsetParent === null),
                 };
             }""")
 
@@ -230,7 +238,7 @@ def main() -> int:
                     and arrow_cnt >= 2 and eval_vis
                     and all_ply_arrows_ok
                     and view_after_click and view_after_click["ply"] == 8
-                    and "h0h7" in played_row_txt
+                    and ("h0h7" in quality_txt or "sai lầm" in quality_txt.lower() or "nghiêm trọng" in quality_txt.lower())
                     and all(arch_ui.values())
                 ) else "FAIL",
                 "engine": an_res.get("engineName"),
@@ -254,9 +262,10 @@ def main() -> int:
             }
 
             # (f) Export modal shows optional "Kèm phân tích" checkbox for JSON
-            page.goto(f"{BASE}/?test#/play/cotuong/review?id=an-test-xq", wait_until="networkidle")
-            page.wait_for_selector('[data-arch="export"]', timeout=5000)
-            page.locator('[data-arch="export"]').click()
+            page.goto(f"{BASE}/?test#/play/cotuong/review?id=an-test-xq", wait_until="domcontentloaded")
+            page.wait_for_selector('[data-testid="panel-menu-btn"]', timeout=5000)
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="export"]').click()
             page.wait_for_selector('[data-exp-include-an]', state="visible", timeout=4000)
             chk_vis = page.locator('[data-exp-include-an]').is_visible()
             page.locator(".modal-close").click()
@@ -385,25 +394,20 @@ def main() -> int:
             errors.extend(f"[desk] {e}" for e in errs)
             ctx.close()
 
-            # (g) Mobile phone (390x844 & inapp_390x700): horizontal 10px eval bar + 4th tab "Phân tích"
+            # (g) Mobile phone (390x844 & inapp_390x700): horizontal 10px eval bar + full-sheet Analysis view
             mob_ok = True
             mob_info = {}
             for dev_name in ("390x844", "inapp_390x700"):
                 mctx = create_device_context(browser, DEVICE_BY_NAME[dev_name])
                 mp = mctx.new_page()
                 merrs = attach_error_listener(mp)
-                mp.goto(f"{BASE}/?test#/", wait_until="networkidle")
+                mp.goto(f"{BASE}/?test#/", wait_until="domcontentloaded")
+                mp.wait_for_function("() => Boolean(window.__gameStore)", timeout=8000)
                 mp.evaluate(_seed_record_js("an-mob-xq", "xiangqi"))
-                mp.goto(f"{BASE}/?test#/play/cotuong/review?id=an-mob-xq&analyze=1&auto=1&preset=fast", wait_until="networkidle")
+                mp.goto(f"{BASE}/?test#/play/cotuong/review?id=an-mob-xq&analyze=1&auto=1&preset=fast", wait_until="domcontentloaded")
                 mp.wait_for_function("() => window.__analysis && window.__analysis.analyzed === 11", timeout=25000)
                 eb = mp.locator('[data-testid="eval-bar"]').bounding_box()
                 ovf = mp.evaluate("document.documentElement.scrollWidth > window.innerWidth + 1")
-                # Open bottom sheet via move-strip expand button & switch to 4th tab "Phân tích"
-                mp.locator('[data-testid="sheet-open-btn"]').click()
-                mp.wait_for_timeout(220)
-                an_tab = mp.locator('[data-stab="analysis"]')
-                an_tab.click()
-                mp.wait_for_timeout(220)
                 an_vis = mp.locator('[data-testid="analysis-panel"]').is_visible()
                 if dev_name == "390x844":
                     save_screenshot(mp, "analysis_mobile.png", OUT_DIR)

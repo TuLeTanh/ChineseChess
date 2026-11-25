@@ -181,7 +181,7 @@ def main():
             page.evaluate("() => document.fonts.ready")
             click_move(page, 1, 2, 1, 0)
             page.locator(".fx-overlay").wait_for(state="visible", timeout=2000)
-            page.locator("button[data-action='undo']").click()
+            page.locator('[data-pact="undo"]').click()
             page.wait_for_timeout(180)
             clean_state = page.evaluate("""() => {
                 const ov = document.querySelector('.fx-overlay');

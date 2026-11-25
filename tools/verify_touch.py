@@ -605,15 +605,18 @@ def _run_t12_lan(browser) -> tuple[dict[str, Any], list[str]]:
                 return { uuidOk, idbOk, isSecureContext: window.isSecureContext };
             }"""
         )
-        # Open Save/Export modal and click FEN copy (should show fallback textarea in insecure context)
-        exp_btn = page.locator('[data-testid="top-save-btn"], [data-action="save-export"]').first
-        fb_ok = True
-        if exp_btn.is_visible():
-            exp_btn.click()
-            page.wait_for_selector('[data-exp="fen"]', timeout=3000)
-            page.locator('[data-exp="fen"]').click()
-            page.wait_for_timeout(200)
-            fb_ok = page.locator(".copy-fb-area").count() > 0 or page.locator(".export-status").text_content() != ""
+        # Open Save/Export modal on a finished game (resign AI) to verify insecure-LAN clipboard fallback
+        page.goto(f"http://{lan_ip}:8791/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
+        page.wait_for_selector("svg.board-svg")
+        page.locator('[data-maction="resign"]').click()
+        page.wait_for_selector(".modal-resign-confirm", timeout=3000)
+        page.locator(".modal-resign-confirm").click()
+        page.wait_for_selector(".modal-export", timeout=6000)
+        page.locator(".modal-export").click()
+        page.wait_for_selector('[data-exp="fen"]:not(:disabled)', timeout=4000)
+        page.locator('[data-exp="fen"]').click()
+        page.wait_for_timeout(200)
+        fb_ok = page.locator(".copy-fb-area").count() > 0 or page.locator(".export-status").text_content() != ""
         ctx.close()
         ok = (not is_sec) and checks["uuidOk"] and checks["idbOk"] and fb_ok and len(errs) == 0
         return {

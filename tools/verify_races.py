@@ -79,7 +79,7 @@ def main():
             page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=dai-su&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
             page.locator(".ai-thinking-label").wait_for(state="visible", timeout=3000)
-            page.locator("button[data-action='undo']").click()
+            page.keyboard.press("Control+z")
             page.wait_for_timeout(900)
             v = page.evaluate("() => window.__view")
             ok1 = v["total"] == 0 and v["ply"] == 0
@@ -88,7 +88,7 @@ def main():
             # 2. Engine reply after New Game mid-search
             click_move(page, 7, 7, 4, 7)
             page.locator(".ai-thinking-label").wait_for(state="visible", timeout=3000)
-            page.locator("button[data-action='new']").click()
+            page.keyboard.press("n")
             page.locator(".modal-confirm").click()
             page.wait_for_timeout(900)
             v = page.evaluate("() => window.__view")
@@ -99,7 +99,7 @@ def main():
             page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
             page.wait_for_function("() => window.__view && window.__view.total >= 2", timeout=8000)
-            page.locator(".ai-level-select").select_option("dai-su")
+            page.locator(".ai-level-select").evaluate("el => { el.value = 'dai-su'; el.dispatchEvent(new Event('change')); }")
             click_move(page, 7, 9, 6, 7)
             page.locator(".ai-thinking-label").wait_for(state="visible", timeout=3000)
             page.locator("button.move-chip[data-ply='2']").click()
@@ -113,7 +113,7 @@ def main():
             # 4. Engine reply after Resign mid-search
             click_move(page, 7, 9, 6, 7)
             page.locator(".ai-thinking-label").wait_for(state="visible", timeout=3000)
-            page.locator("button[data-action='resign']").click()
+            page.locator('[data-pact="resign"]').click()
             page.locator(".modal-resign-confirm").click()
             page.locator(".fx-skip-btn").wait_for(state="visible", timeout=2000)
             page.locator(".fx-skip-btn").click()
@@ -158,7 +158,7 @@ def main():
             page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=dai-su&engine=js", wait_until="networkidle")
             click_move(page, 7, 7, 4, 7)
             page.locator(".ai-thinking-label").wait_for(state="visible", timeout=3000)
-            page.locator(".ai-level-select").select_option("tap-su")
+            page.locator(".ai-level-select").evaluate("el => { el.value = 'tap-su'; el.dispatchEvent(new Event('change')); }")
             page.wait_for_function("() => window.__view && window.__view.total >= 2", timeout=10000)
             v = page.evaluate("() => window.__view")
             ok7 = v["total"] == 2

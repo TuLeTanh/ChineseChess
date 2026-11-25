@@ -2,12 +2,26 @@
 
 Tài liệu mô tả kiến trúc, thuật toán chấm điểm, và giao diện của tính năng **Phân tích ván cờ** (hỗ trợ **Cờ Tướng**, chạy bằng **Pikafish UCI + WDL** hoặc tự động dự phòng bằng **Nội bộ (JS)** Web Worker).
 
-## 1. Quy tắc công bằng (Integrity Rule)
+## 1. Quy tắc công bằng (Integrity Rule & Ngoại lệ P4)
 
-- Phân tích **chỉ** khả dụng sau khi ván cờ kết thúc (từ thẻ kết quả, màn hình xem lại ván đã lưu, hoặc liên kết chia sẻ).
-- Trong khi đang chơi ván trực tiếp (Hai người, Đấu máy, hoặc Đấu Online), không hiển thị thanh đánh giá, mũi tên phân tích hay nút phân tích.
-- Nếu người dùng chọn **Chơi tiếp từ đây** từ màn hình xem lại, ván mới bắt đầu sạch sẽ và không mang theo bảng phân tích.
-- **Cờ Úp (Jieqi)**: chưa hỗ trợ phân tích (hiển thị thông báo *"Cờ Úp chưa hỗ trợ phân tích"* và khóa nút chạy).
+- **Đấu máy (AI) và Đấu Online**: Phân tích **chỉ** khả dụng sau khi ván cờ kết thúc (từ thẻ kết quả, màn hình xem lại ván đã lưu, hoặc liên kết chia sẻ). Trong khi đang chơi trực tiếp, nút **Phân tích**, thanh đánh giá và mũi tên phân tích bị ẩn hoàn toàn; liên kết sâu tới ván AI/Online chưa kết thúc (`result === 'unfinished'`) cũng bị chặn.
+- **Hai người trên cùng máy (Local 2-player Cờ Tướng — Ngoại lệ học tập)**: Cho phép mở **Phân tích** trực tiếp ngay trong ván (phân tích từng thế cờ theo thời gian thực với độ trễ gom `250 ms`, Pikafish `1000 ms` hoặc JS độ sâu `5`, kèm nút **Phân tích cả ván**), và cho phép mở lại từ thư viện kể cả khi ván chưa kết thúc.
+- **Cờ Úp (Jieqi)**: Chưa hỗ trợ phân tích ở mọi chế độ; nút **Phân tích** được ẩn và menu `⋯` hiển thị dòng ghi chú *"Cờ Úp chưa hỗ trợ phân tích"*.
+- Nếu người dùng chọn **Chơi tiếp từ đây** từ màn hình xem lại, ván mới bắt đầu sạch sẽ (trừ chế độ Hai người nơi người dùng có thể chủ động mở lại **Phân tích**).
+
+## 1b. Giao diện Phân tích Toàn bảng (Full-Swap)
+
+Khi bấm **Phân tích**, toàn bộ bảng bên phải (hoặc bảng trượt toàn màn hình trên điện thoại) được thay thế bởi bảng Phân tích gồm các khối rõ ràng:
+- **Thanh tiêu đề cố định**: `← Về ván` (hoặc phím `Esc` để quay về và giữ nguyên vị trí cuộn), tên động cơ (`Pikafish` / `Nội bộ`), và menu `⋯` chọn mức độ (`Nhanh` / `Chuẩn` / `Sâu`).
+- **Thẻ Nhận định (5 mức tiếng Việt)** theo tỷ lệ thắng của Đỏ:
+  - `≥ 75%`: **Đỏ lợi thế lớn**
+  - `58% – 75%`: **Đỏ ưu thế**
+  - `42% – 58%`: **Cân bằng**
+  - `25% – 42%`: **Đen ưu thế**
+  - `< 25%`: **Đen lợi thế lớn**
+- **Thẻ Chất lượng nước đi**: hiển thị phân loại, câu giải thích tiếng Việt về mức tụt tỷ lệ thắng, nút **Xem nước tốt hơn** và **Thử nước này**.
+- **Phương án tiếp theo (6 nước / 3 lượt mỗi bên)**: mọi nước trong chuỗi PV đều được kiểm tra hợp lệ qua `XiangqiRules`. Bấm vào bất kỳ thẻ nước nào để xem trước bàn cờ không phá hủy lịch sử (*"Đang xem phương án của máy"*, mũi tên đánh số `1..6`, nhấn `Esc` hoặc **Thoát** để quay lại). Nút **Sâu hơn** mở rộng lên **8 nước** (lưu kèm trong cache phân tích).
+- **Thanh đánh giá (`EvalBar`)**: rộng `24 px` trên máy tính (chỉ số luôn cách mép `≥ 4 px`, tự đảo đầu ở thế cực đoan) và ngang `10 px` trên điện thoại dọc.
 
 ## 2. Động cơ phân tích
 

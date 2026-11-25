@@ -478,7 +478,7 @@ def run_suite(engine_name: str = "chromium", baseline: bool = False, save_shots:
                     page.goto(f"{base}/?test&seed=42#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
                     page.wait_for_selector("svg.board-svg")
                     page.wait_for_timeout(250)
-                    page.locator('[data-action="resign"]').click()
+                    page.locator('[data-pact="resign"]').click()
                     page.wait_for_selector(".modal-resign-confirm")
                     page.locator(".modal-resign-confirm").click()
                     page.wait_for_selector(".fx-skip-btn", timeout=3000)

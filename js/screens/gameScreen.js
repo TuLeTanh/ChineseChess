@@ -4,9 +4,12 @@
  * cleanup on unmount (zero listener/timer/worker/canvas leaks).
  */
 import { RED, BLACK } from '../model/piece.js';
+import { Board } from '../model/board.js';
 import { START_FEN } from '../model/fen.js';
 import { BoardView } from '../ui/boardView.js';
 import { SidePanel } from '../ui/sidePanel.js';
+import { EvalBar } from '../ui/evalBar.js';
+import { AnalysisPanel } from '../ui/analysisView.js';
 import { AiClient } from '../ai/client.js';
 import { PikafishClient } from '../ai/pikafishClient.js';
 import { GameController } from '../game/GameController.js';
@@ -15,7 +18,11 @@ import { jieqiVariant } from '../variants/jieqi.js';
 import { dealRemainingPool } from '../jieqi/rules.js';
 import { GameStatus } from '../rules.js';
 import { openSettingsModal } from '../ui/settingsModal.js';
-import { openExportModal, saveRecordWithPrunePrompt } from '../ui/saveModals.js';
+import {
+  openExportModal,
+  openContinueFromPositionModal,
+  saveRecordWithPrunePrompt,
+} from '../ui/saveModals.js';
 import { buildRecordFromBoard } from '../storage/gameRecord.js';
 import { OnlineGameBridge } from '../online/onlineGameController.js';
 import { leakTracker } from '../app/router.js';
@@ -34,6 +41,8 @@ export function createGameScreen(ctx) {
   let layoutManager = null;
   let moveStrip = null;
   let bottomSheet = null;
+  let evalBar = null;
+  let analysisPanel = null;
   let wakeLock = null;
   let onKeyDown = null;
   let onBeforeUnload = null;
@@ -156,6 +165,11 @@ export function createGameScreen(ctx) {
               <button type="button" class="game-nav-btn" data-nav="settings" aria-label="Cài đặt" title="Cài đặt">⚙</button>
             </div>
           </div>
+          <div class="review-banner-slot"></div>
+          <div class="pv-preview-banner" data-testid="pv-preview-banner" hidden>
+            <span class="pv-preview-label">Đang xem phương án của máy</span>
+            <button type="button" class="mini-seg-btn" data-action="exit-pv-preview">Thoát</button>
+          </div>
           <div class="game-board-host"></div>
           <div class="move-strip-host"></div>
           <nav class="mobile-controls-bar" data-testid="mobile-controls" aria-label="Điều khiển nhanh"></nav>
@@ -191,7 +205,11 @@ export function createGameScreen(ctx) {
       container.querySelector('[data-testid="top-save-btn"]').addEventListener('click', openSaveExport);
 
       container.querySelector('[data-nav="lobby"]').addEventListener('click', () => {
-        if (controller && controller.isGameInProgress()) {
+        const inProgress =
+          mode === 'online'
+            ? Boolean(onlineBridge && !onlineBridge.over)
+            : Boolean(controller && controller.isGameInProgress());
+        if (inProgress) {
           modalRoot.hidden = false;
           modalRoot.innerHTML = `
             <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="leave-title">
@@ -319,6 +337,35 @@ export function createGameScreen(ctx) {
         },
       });
       boardView.setAllowContinue(controller.canContinue());
+      // P7: dock review banner above the board frame so it never covers file/rank labels
+      const reviewBannerSlot = container.querySelector('.review-banner-slot');
+      const liveRevBanner = stage.querySelector('.review-banner');
+      if (reviewBannerSlot && liveRevBanner) {
+        reviewBannerSlot.appendChild(liveRevBanner);
+      }
+      const pvPreviewBanner = container.querySelector('[data-testid="pv-preview-banner"]');
+      pvPreviewBanner?.querySelector('[data-action="exit-pv-preview"]')?.addEventListener('click', () => {
+        analysisPanel?.clearPreview();
+      });
+
+      const openAnalysis = () => {
+        if (!analysisPanel || !sidePanel || !sidePanel.getPolicy().showAnalysis) return;
+        sidePanel.setAnalysisMode(true);
+        if (bottomSheet && bottomSheet.enabled) {
+          bottomSheet.open('full');
+          bottomSheet.selectTab('analysis');
+        }
+        analysisPanel.setActive(true);
+      };
+      const closeAnalysis = () => {
+        if (analysisPanel?.previewActive) analysisPanel.clearPreview();
+        analysisPanel?.setActive(false);
+        sidePanel?.setAnalysisMode(false);
+        if (bottomSheet && bottomSheet.enabled) {
+          bottomSheet.selectTab('moves');
+          bottomSheet.close();
+        }
+      };
 
       sidePanel = new SidePanel({
         container: sidePanelEl,
@@ -402,6 +449,13 @@ export function createGameScreen(ctx) {
         },
         onHint: () => controller.handleHint(),
         onResign: () => controller.handleResign(),
+        onLocalDraw: () => controller.handleLocalDraw(),
+        onLocalResign: (side) => controller.handleResign(side),
+        onOnlineDraw: () => {
+          if (onlineBridge && onlineBridge.drawBtn) onlineBridge.drawBtn.click();
+        },
+        onOpenAnalysis: () => openAnalysis(),
+        onOpenSettings: (triggerEl) => openSettingsModal(ctx, 'appearance', triggerEl),
         onExportGame: () => {
           const viewedFen = controller.board.snapshotAt(controller.viewPly).fen;
           openExportModal(ctx, {
@@ -440,6 +494,7 @@ export function createGameScreen(ctx) {
           if (moveStrip) moveStrip.update(info.viewPly);
           renderMobileControls(info);
           if (wakeLock) wakeLock.sync();
+          if (analysisPanel) analysisPanel.refreshLiveLocalState();
           if (topChipEl && controller) {
             const lvl = (AI_LEVELS.find((l) => l.id === controller.aiLevel) || AI_LEVELS[1]).name;
             topChipEl.textContent =
@@ -463,6 +518,7 @@ export function createGameScreen(ctx) {
           controller.hintsLeft > 0 &&
           controller.board.sideToMove === controller.playerSide;
         const gameOver = controller.isGameOver();
+        const showAnalyze = sidePanel.getPolicy().showAnalysis;
 
         let buttons = [];
         if (isRev) {
@@ -477,22 +533,35 @@ export function createGameScreen(ctx) {
           if (!undoDisallowed) {
             buttons.push({ act: 'undo', icon: '↩', label: 'Đi lại', disabled: !canUndo });
           }
+          if (showAnalyze) {
+            buttons.push({ act: 'analyze', icon: '📊', label: 'Phân tích', disabled: false });
+          } else {
+            buttons.push({ act: 'hint', icon: '💡', label: `Gợi ý (${controller.hintsLeft})`, disabled: !canHint });
+          }
           buttons.push(
-            { act: 'hint', icon: '💡', label: `Gợi ý (${controller.hintsLeft})`, disabled: !canHint },
             { act: 'resign', icon: '🏳', label: 'Đầu hàng', disabled: gameOver },
             { act: 'sheet', icon: '⌃', label: 'Nước đi', disabled: false }
           );
         } else if (curMode === 'online') {
-          buttons = [
-            { act: 'online-draw', icon: '🤝', label: 'Xin hòa', disabled: gameOver },
-            { act: 'resign', icon: '🏳', label: 'Đầu hàng', disabled: gameOver },
-            { act: 'sheet', icon: '⌃', label: 'Nước đi', disabled: false },
-          ];
+          if (showAnalyze) {
+            buttons = [
+              { act: 'analyze', icon: '📊', label: 'Phân tích', disabled: false },
+              { act: 'sheet', icon: '⌃', label: 'Nước đi', disabled: false },
+            ];
+          } else {
+            buttons = [
+              { act: 'online-draw', icon: '🤝', label: 'Xin hòa', disabled: gameOver },
+              { act: 'resign', icon: '🏳', label: 'Đầu hàng', disabled: gameOver },
+              { act: 'sheet', icon: '⌃', label: 'Nước đi', disabled: false },
+            ];
+          }
         } else {
           buttons = [
             { act: 'undo', icon: '↩', label: 'Đi lại', disabled: !canUndo },
+            ...(showAnalyze
+              ? [{ act: 'analyze', icon: '📊', label: 'Phân tích', disabled: false }]
+              : [{ act: 'new', icon: '＋', label: 'Ván mới', disabled: false }]),
             { act: 'flip', icon: '⇅', label: 'Xoay bàn', disabled: false },
-            { act: 'new', icon: '＋', label: 'Ván mới', disabled: false },
             { act: 'sheet', icon: '⌃', label: 'Nước đi', disabled: false },
           ];
         }
@@ -515,6 +584,7 @@ export function createGameScreen(ctx) {
         if (act === 'undo') controller.handleUndo();
         else if (act === 'flip') boardView.flip();
         else if (act === 'new') sidePanel.requestNewGame();
+        else if (act === 'analyze') openAnalysis();
         else if (act === 'hint') controller.handleHint();
         else if (act === 'resign') sidePanel.requestResign();
         else if (act === 'online-draw') {
@@ -539,8 +609,91 @@ export function createGameScreen(ctx) {
 
       boardView.onFlipChange = (flipped) => {
         container.classList.toggle('is-flipped', Boolean(flipped));
+        if (evalBar) evalBar.setFlipped(flipped);
       };
       container.classList.toggle('is-flipped', Boolean(boardView.flipped));
+
+      // Mount EvalBar + AnalysisPanel for Cờ Tướng (live local + post-game AI/online)
+      if (variant.id !== 'coup') {
+        evalBar = new EvalBar({ container: stage });
+        evalBar.setFlipped(Boolean(boardView.flipped));
+        const anPane = sidePanelEl.querySelector('.sheet-pane[data-spane="analysis"]');
+        if (anPane) anPane.hidden = false;
+        sidePanelEl.classList.add('has-analysis');
+        const FILES = 'abcdefghi';
+        analysisPanel = new AnalysisPanel({
+          ctx,
+          hostEl: sidePanel.analysisPaneHost || sidePanelEl,
+          evalBar,
+          boardView,
+          sidePanel,
+          startFen: controller.gameStartFen,
+          moves: controller.board.history.map((m) => m.iccs),
+          variant: 'xiangqi',
+          isUnfinished: false,
+          isLiveLocal: mode === 'local',
+          getBoardState: () => {
+            const snap = controller.board.snapshotAt(controller.viewPly);
+            const parts = (snap.fen || '').split(' ');
+            return {
+              startFen: controller.gameStartFen,
+              moves: controller.board.history.map((m) => m.iccs),
+              viewPly: controller.viewPly,
+              currentFen: snap.fen,
+              sideToMove: parts[1] === 'b' ? 'black' : 'red',
+              gameOver: controller.isGameOver(),
+            };
+          },
+          onSelectPly: (ply, opts) => controller.goToPly(ply, opts),
+          onClose: () => closeAnalysis(),
+          onPreviewFen: (fen, pvArrows) => {
+            if (!boardView || !controller) return;
+            if (fen) {
+              if (pvPreviewBanner) pvPreviewBanner.hidden = false;
+              boardView.setReviewState({
+                active: true,
+                viewPly: controller.viewPly,
+                totalPlies: controller.board.history.length,
+                hasNewMoves: false,
+                viewBoard: Board.fromFen(fen),
+                lastMove: null,
+                transition: 'instant',
+                reducedMotion: true,
+              });
+              boardView.setAnalysisArrows(pvArrows || []);
+            } else {
+              if (pvPreviewBanner) pvPreviewBanner.hidden = true;
+              if (controller.isReviewing()) {
+                controller.goToPly(controller.viewPly, { isScrub: true });
+              } else {
+                boardView.setReviewState({
+                  active: false,
+                  viewPly: controller.board.history.length,
+                  totalPlies: controller.board.history.length,
+                  hasNewMoves: false,
+                  viewBoard: null,
+                  lastMove: controller.board.lastMove(),
+                  transition: 'instant',
+                  reducedMotion: true,
+                });
+                boardView.setAnalysisArrows([]);
+              }
+            }
+          },
+          onTryMove: (ply, iccs) => {
+            if (!iccs || iccs.length !== 4) return;
+            const b = Board.fromFen(controller.board.snapshotAt(ply).fen);
+            const from = { x: FILES.indexOf(iccs[0]), y: 9 - Number(iccs[1]) };
+            const to = { x: FILES.indexOf(iccs[2]), y: 9 - Number(iccs[3]) };
+            b.applyMove(from, to);
+            openContinueFromPositionModal(ctx, {
+              variant: 'xiangqi',
+              fen: b.toFen(),
+              pool: null,
+            });
+          },
+        });
+      }
 
       const sheetEl = sidePanelEl.querySelector('[data-testid="bottom-sheet"]');
       if (sheetEl) {
@@ -548,6 +701,10 @@ export function createGameScreen(ctx) {
           sheetEl,
           hostContainer: container,
           onStateChange: (st) => {
+            if (st === 'closed' && sidePanel?.analysisOpen) {
+              analysisPanel?.setActive(false);
+              sidePanel.setAnalysisMode(false);
+            }
             if (layoutManager) layoutManager.setSheetState(st);
             if (moveStrip) moveStrip.setExpanded(st !== 'closed');
           },
@@ -568,14 +725,6 @@ export function createGameScreen(ctx) {
       };
 
       controller.attachViews(boardView, sidePanel);
-
-      // Add "Lưu / Xuất" button to side panel (in all live modes)
-      const exportRow = document.createElement('div');
-      exportRow.className = 'side-export-row';
-      exportRow.innerHTML = `<button type="button" class="pill-btn pill-btn-compact" data-action="save-export">💾 Lưu / Xuất</button>`;
-      exportRow.querySelector('button').addEventListener('click', openSaveExport);
-      const audioBar = sidePanelEl.querySelector('.audio-bar');
-      if (audioBar) audioBar.parentNode.insertBefore(exportRow, audioBar);
 
       if (resumeSnap) {
         controller.restoreAutosave(resumeSnap);
@@ -662,7 +811,11 @@ export function createGameScreen(ctx) {
           ev.preventDefault();
           controller.toggleAutoPlay();
         } else if (ev.key === 'Escape') {
-          if (controller.isReviewing()) {
+          if (analysisPanel && analysisPanel.previewActive) {
+            analysisPanel.clearPreview();
+          } else if (sidePanel && sidePanel.analysisOpen) {
+            closeAnalysis();
+          } else if (controller.isReviewing()) {
             controller.goToPly(controller.board.history.length);
           } else {
             boardView.clearSelection();
@@ -731,6 +884,14 @@ export function createGameScreen(ctx) {
         bottomSheet.dispose();
         bottomSheet = null;
       }
+      if (analysisPanel) {
+        analysisPanel.dispose();
+        analysisPanel = null;
+      }
+      if (evalBar) {
+        evalBar.dispose();
+        evalBar = null;
+      }
       if (onlineBridge) {
         onlineBridge.dispose();
         onlineBridge = null;
@@ -740,6 +901,7 @@ export function createGameScreen(ctx) {
         controller = null;
       }
       if (sidePanel) {
+        sidePanel.closeOverflowMenu?.();
         sidePanel.closeModal();
         sidePanel = null;
       }

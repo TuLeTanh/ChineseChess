@@ -1,4 +1,4 @@
-# Mobile & Touch Scoreboard — Round 6 (Final)
+# Mobile & Touch Scoreboard — Current Run
 
 | Check ID | Status | Key Numbers / Notes |
 |---|---|---|
@@ -9,7 +9,7 @@
 | `mobile.M5` | **PASS** | ok |
 | `mobile.M6` | **PASS** | ok |
 | `mobile.M7` | **PASS** | ok |
-| `mobile.M8` | **PASS** | max_diff_pct=0.265 |
+| `mobile.M8` | **PASS** | max_diff_pct=0.31 |
 | `mobile.M9` | **PASS** | min_contrast=11.29 |
 | `mobile.console_errors` | **PASS** | count=0 |
 | `touch.T1` | **PASS** | dots=11, dots_after_ill=11, ply=1 |
@@ -23,8 +23,8 @@
 | `touch.T9` | **PASS** | ply_rev=1, banner_vis=True, ply_live=3, ply_total=3 |
 | `touch.T10` | **PASS** | audio_state=running, sfx_events=14 |
 | `touch.T11` | **PASS** | vib_log=[8, 12] |
-| `touch.T12` | **PASS** | url=http://10.20.3.252:8791, isSecureContext=False, uuidOk=True, idbOk=True, clipboardFallbackOk=True |
-| `touch.T13` | **PASS** | drag_p50=16.7, drag_p95=16.8, drag_max=150, idle_raf=0, lobby_p95=16.7, fx_p95=50, fx_max=166.7 |
+| `touch.T12` | **PASS** | url=http://192.168.1.7:8791, isSecureContext=False, uuidOk=True, idbOk=True, clipboardFallbackOk=True |
+| `touch.T13` | **PASS** | drag_p50=16.7, drag_p95=16.8, drag_max=200, idle_raf=0, lobby_p95=16.8, fx_p95=50, fx_max=183.4 |
 | `touch.T14` | **PASS** | seed=777123, sec_per_screen=10, max_gap_ms=16.8, leaks={'listeners': 2, 'canvases': 1, 'workers': 0, 'sockets': 0, 'timers': 1, 'trackListener': None, 'trackCanvas': None, 'trackWorker': None, 'trackSocket': None, 'trackTimer': None, 'snapshot': None} |
 | `touch.console_errors` | **PASS** | count=0 |
 | `webkit.M1` | **PASS** | ok |
@@ -35,14 +35,5 @@
 | `webkit.M6` | **PASS** | ok |
 | `webkit.console_errors` | **PASS** | count=0 |
 | `webkit.WK_T1` | **PASS** | ply=1 |
-| `webkit.WK_T10` | **PASS** | sfx_events=1 |
+| `webkit.WK_T10` | **PASS** | sfx_events=2 |
 | `webkit.console_errors` | **PASS** | count=0 |
-
-## Online Dialogs & Two-Phone E2E — Baseline (before)
-
-| Check ID | Status | Key Numbers / Notes |
-|---|---|---|
-| `dialogs.crawler` | **FAIL** | checked=90, failures=72 (`room_join scrollW=1480` vs `clientW=318`, `INPUT.code-box` out of bounds, `mini-seg-btn` 26 px < 44 px, `ai-level-select` 28 px, `export` buttons 40 px) |
-| `dialogs.offline_btns` | **FAIL** | 6+ hits: `.mode-offline-actions` visible while online (missing `[hidden] { display: none !important }`) |
-| `online_mobile.S1..S10` | **FAIL** | S1 resign timeout / S5 rematch cancel+decline+opponent-left not implemented |
-

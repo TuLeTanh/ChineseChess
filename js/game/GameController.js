@@ -73,6 +73,8 @@ export class GameController {
 
     this.hintsLeft = 3;
     this.resigned = false;
+    this.resignedSide = null;
+    this.localDrawAgreed = false;
     this.lastStatus = GameStatus.Playing;
     this.aiSearchToken = 0;
 
@@ -153,6 +155,7 @@ export class GameController {
   isGameOver() {
     return (
       this.resigned ||
+      this.localDrawAgreed ||
       this.lastStatus === GameStatus.Checkmate ||
       this.lastStatus === GameStatus.Stalemate ||
       this.lastStatus === GameStatus.DrawRepetition ||
@@ -592,6 +595,8 @@ export class GameController {
     this.cancelEndFx();
     this.stopAutoPlay();
     this.resigned = false;
+    this.resignedSide = null;
+    this.localDrawAgreed = false;
     this.hintsLeft = 3;
     this.hasNewLiveMoves = false;
     this.inReviewMode = false;
@@ -618,6 +623,7 @@ export class GameController {
     }
     if (this.sidePanel) {
       this.sidePanel.setResigned(false);
+      this.sidePanel.localDrawAgreed = false;
       this.sidePanel.setHintsLeft(this.hintsLeft);
       this.sidePanel.closeModal();
       this.sidePanel.viewPly = 0;
@@ -638,6 +644,8 @@ export class GameController {
     this.cancelEndFx();
     this.stopAutoPlay();
     this.resigned = false;
+    this.resignedSide = null;
+    this.localDrawAgreed = false;
     this.hasNewLiveMoves = false;
     this.inReviewMode = false;
     this.board.truncateTo(ply);
@@ -657,6 +665,7 @@ export class GameController {
     }
     if (this.sidePanel) {
       this.sidePanel.setResigned(false);
+      this.sidePanel.localDrawAgreed = false;
       this.sidePanel.closeModal();
     }
     this.evaluateStatus({ type: 'truncate' });
@@ -703,6 +712,18 @@ export class GameController {
       }
       return;
     }
+    if (this.resigned || this.localDrawAgreed) {
+      this.resigned = false;
+      this.resignedSide = null;
+      this.localDrawAgreed = false;
+      if (this.sidePanel) {
+        this.sidePanel.setResigned(false);
+        this.sidePanel.localDrawAgreed = false;
+        this.sidePanel.closeModal();
+      }
+      this.evaluateStatus({ type: 'undo' });
+      return;
+    }
     this.boardView.undo();
     this.viewPly = this.board.history.length;
     this.updateViewHook();
@@ -732,15 +753,32 @@ export class GameController {
     }
   }
 
-  handleResign() {
+  handleResign(side = null) {
     this.cancelAi();
     this.resigned = true;
-    if (this.sidePanel) this.sidePanel.setResigned(true);
+    this.resignedSide = side || (this.mode === 'ai' ? this.playerSide : this.board.sideToMove);
+    if (this.sidePanel) this.sidePanel.setResigned(true, this.resignedSide);
     if (this.boardView) this.boardView.setLocked(true);
     if (this.sidePanel) this.sidePanel.update(this.lastStatus);
-    this.onPersistHook({ event: 'gameover', status: this.lastStatus, isResign: true });
+    this.onPersistHook({ event: 'gameover', status: this.lastStatus, isResign: true, resignedSide: this.resignedSide });
     if (this.haptics) this.haptics.trigger('gameover');
     this.triggerEndCinematic(this.lastStatus, true);
+  }
+
+  handleLocalDraw() {
+    this.cancelAi();
+    this.localDrawAgreed = true;
+    if (this.boardView) this.boardView.setLocked(true);
+    if (this.sidePanel) {
+      this.sidePanel.localDrawAgreed = true;
+      this.sidePanel.update(GameStatus.DrawNoCapture);
+      this.sidePanel.showGameOverModal('Hòa cờ (thỏa thuận)', {
+        kind: 'draw',
+        reasonText: 'Hai bên đồng ý hòa.',
+      });
+    }
+    this.onPersistHook({ event: 'gameover', status: GameStatus.DrawNoCapture, isResign: false, isDrawAgreed: true });
+    if (this.haptics) this.haptics.trigger('gameover');
   }
 
   /**

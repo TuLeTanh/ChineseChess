@@ -277,3 +277,23 @@
    - **R3 Eval Bar & Graph Readability**: **4 / 5** (clean horizontal/vertical bar & graph; `+0.3` label on 18 px vertical bar is slightly tight horizontally).
    - **R4 Mobile & Touch Ergonomics**: **4 / 5** (zero overflow, 44 px targets, WebKit 57/57 pass; half-open sheet on `390×844` requires a small scroll to reach `"Sai lầm lớn nhất"`).
    - **R5 Integrity & Robustness**: **5 / 5** (all live export/copy/save locked, unfinished deep links blocked, 409/cancel/checkmate/custom-FEN/leaks all verified green).
+
+## UI Redesign Pass — Compact Side Panel & Full-Swap Analysis (`feat/compact-panel`)
+
+- **Phase 0 & 1 (Mapping + Pure Policy + Red Baseline)**:
+  - Mapped all controls in `docs/PANEL_REDESIGN.md` and created `js/app/panelPolicy.js` (`panelPolicy`, `VERDICT_BANDS`, `verdictForWinPercent`, `buildValidatedPvChips`, `createLiveAnalysisScheduler`).
+  - Added `tests/panel/panel.test.js` (5/5 PASS) and `tools/verify_panel.py` (P1–P8, confirmed RED baseline before implementation).
+- **Phase 2 (Compact Default Panel, P1–P4, P6–P8)**:
+  - Redesigned `js/ui/sidePanel.js`, `js/game/GameController.js`, `js/screens/gameScreen.js`, `js/screens/replayScreen.js`, `js/online/onlineGameController.js`, `js/ui/evalBar.js`, and `css/style.css`:
+    - Compact `320 px` desktop panel with zero panel-level scroll (`scrollH == clientH`), 42 px header (`Phân tích` gold button + keyboard-accessible `"⋯"` overflow menu), 2 compact player cards (1-line captured tray with fade mask), flex move list + timeline + review bar, 1-line status strip, and mode-specific bottom action row (`ai`: `[Đầu hàng]`, `local`: `[Đi lại] [Hòa] [Đầu hàng]` with confirm modals, `online`: `[Xin hòa] [Đầu hàng]`, `archive`: `[Về hiện tại] [Chơi tiếp từ đây]`).
+    - P4 visibility matrix enforced across live local (VISIBLE), live AI/online (HIDDEN), finished/archive Cờ Tướng (VISIBLE), unfinished local archive (ALLOWED), unfinished AI/online archive (BLOCKED), and Cờ Úp (HIDDEN + menu note).
+    - P7 review banner docked above the board frame on all layouts (`bannerBottom <= svgTop`), keeping desktop live board area within `0.01%–0.13%` pixel diff.
+    - P8 eval bar widened to `24 px` on desktop with `>= 6 px` score chip inset and edge-flip guard.
+- **Phase 3 (Full-Swap Analysis Panel, Blocks A–G)**:
+  - Rewrote `js/ui/analysisView.js` and added numbered PV continuation arrows `1..6` in `js/ui/boardView.js`: sticky `← Về ván | Phân tích | Engine | ⋯` header, 5-band Vietnamese Verdict Card + 2-color win% bar, Move Quality card with Vietnamese explanation + `"Xem nước tốt hơn"` + `"Thử nước này"`, 6-ply `XiangqiRules`-validated PV chips with non-destructive ghost board preview (`"Đang xem phương án của máy"`, `Esc` returns without mutating history) + `"Sâu hơn"` 8-ply extension, SVG area graph + legend, Summary rings + `"Chỉ hiện sai lầm"`, and debounced (`250 ms`) live single-position analysis in live local Cờ Tướng.
+- **Phase 4 (Verification, M8 Re-baseline, Perf & Visual Self-Eval)**:
+  - Updated legacy Playwright test selectors for `"⋯"` menu / `[data-pact="..."]` in `verify.py`, `verify_fx.py`, `verify_jieqi.py`, `verify_saves.py`, `verify_engine.py`, `verify_races.py`, `verify_analysis.py`, `verify_mobile.py`, and `verify_touch.py`; fixed `sidePanel.setHintsLeft()` menu refresh and `gameScreen.js` reconnected online leave check.
+  - Re-baselined desktop M8 after confirming board-area diff `0.01%–0.13% <= 1.5%` (documented in `docs/DECISIONS.md`).
+  - 4× CPU throttle perf: `p95 = 16.8 ms <= 34 ms`, `idle_raf = 0`, 20-move live spam + 20 round trips: `workers = 0`, `sockets = 0`, `console_errors = 0`.
+  - Visual Self-Eval (3 rounds, fixed footer ordering, full-swap pane isolation, replay top-nav clipping, landscape hidden start-chip, and desktop panel height): **R1=5, R2=5, R3=5, R4=5, R5=5, R6=5**.
+  - Captured optimized screenshots (`<= 400 KB`): `docs/screenshots/panel_compact.png` (`235 KB`), `docs/screenshots/analysis_panel_desktop.png` (`239 KB`), `docs/screenshots/analysis_panel_mobile.png` (`267 KB`).

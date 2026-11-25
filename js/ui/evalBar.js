@@ -64,6 +64,9 @@ export class EvalBar {
     const redAdv = wp >= 50;
     this.el.classList.toggle('is-red-adv', redAdv);
     this.el.classList.toggle('is-black-adv', !redAdv);
+    // Flip chip to opposite end when near extreme edge so it stays >= 4px inside bar
+    const nearEdge = wp >= 92 || wp <= 8;
+    this.el.classList.toggle('is-chip-flipped', nearEdge);
   }
 
   dispose() {

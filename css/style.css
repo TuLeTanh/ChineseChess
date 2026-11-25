@@ -4147,11 +4147,11 @@ body.mode-effects .board-stage {
 
 .eval-bar {
   position: relative;
-  width: 18px;
+  width: 24px;
   height: min(76vh, 620px);
-  border-radius: 9px;
+  border-radius: 10px;
   background: #23262e;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   overflow: hidden;
   flex-shrink: 0;
   order: -1;
@@ -4184,18 +4184,27 @@ body.mode-effects .board-stage {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 4px;
+  bottom: 6px;
+  padding: 1px 2px;
   font-size: 9px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.1;
   color: #fff6e5;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   pointer-events: none;
   white-space: nowrap;
 }
 .eval-bar.is-black-adv .eval-bar-score {
   bottom: auto;
-  top: 4px;
+  top: 6px;
+}
+.eval-bar.is-chip-flipped:not(.is-black-adv) .eval-bar-score {
+  bottom: auto;
+  top: 6px;
+}
+.eval-bar.is-chip-flipped.is-black-adv .eval-bar-score {
+  top: auto;
+  bottom: 6px;
 }
 
 /* Mobile stack: 10px horizontal eval bar above board */
@@ -4234,9 +4243,16 @@ body.mode-effects .board-stage {
   right: 6px;
 }
 
-/* Desktop / side layout: always show analysis pane inside side-panel when mounted */
-.game-shell:not([data-layout="stack"]) .side-panel.has-analysis .sheet-pane[data-spane="analysis"] {
-  display: block;
+/* Desktop / side layout: analysis pane is full-swap controlled by .is-analysis-open */
+.game-shell:not([data-layout="stack"]) .side-panel .sheet-pane[data-spane="analysis"] {
+  display: none;
+}
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .sheet-pane[data-spane="analysis"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .analysis-panel {
@@ -4581,4 +4597,677 @@ body.mode-effects .board-stage {
 .is-replay-shell[data-layout="stack"] .replay-mode-pill {
   font-size: 11px;
   padding: 4px 10px;
+}
+
+/* =========================================================
+   UI Redesign: Compact Default Side Panel & Full-Swap Analysis
+   ========================================================= */
+
+/* P7: Review banner & PV preview banner docked above board frame on ALL layouts
+   without shifting the live desktop board when no banner is visible */
+.game-shell:not(.is-replay-shell):not([data-layout="stack"]):not([data-layout="side"]) .board-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+.game-shell:not(.is-replay-shell):not([data-layout="stack"]):not([data-layout="side"]) .game-board-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.review-banner-slot,
+.replay-banner-slot {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.review-banner-slot:not(:has(.review-banner:not([hidden]))),
+.replay-banner-slot:not(:has(.review-banner:not([hidden]))) {
+  display: none;
+}
+.review-banner-slot .review-banner,
+.replay-banner-slot .review-banner {
+  position: static;
+  transform: none;
+  margin: 4px auto 2px;
+  max-width: 100%;
+}
+.review-banner-slot .review-banner[hidden],
+.replay-banner-slot .review-banner[hidden] {
+  display: none !important;
+}
+.pv-preview-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  color: #e0f2fe;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.pv-preview-banner[hidden] {
+  display: none !important;
+}
+
+/* Desktop / side compact panel shell (320px wide, zero panel-level scroll) */
+.game-shell:not([data-layout="stack"]) .side-panel {
+  width: 320px;
+  min-width: 300px;
+  max-width: 340px;
+  height: calc(100dvh - 24px);
+  max-height: calc(100dvh - 24px);
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.game-shell[data-layout="side"] .side-panel {
+  width: clamp(248px, 34vw, 310px);
+  min-width: 240px;
+  height: 100%;
+  max-height: 100%;
+  padding: 6px 10px;
+}
+.game-shell[data-layout="side"] .side-panel .move-list-scroll {
+  min-height: 36px;
+}
+.move-start-chip[hidden] {
+  display: none !important;
+}
+
+.game-shell:not([data-layout="stack"]) .compact-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.game-shell:not([data-layout="stack"]) .compact-panel-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.game-shell:not([data-layout="stack"]) .side-panel > .sheet-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .sheet-scroll-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .sheet-pane[data-spane="moves"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .move-list-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .move-list-scroll-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .move-list-scroll {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: none;
+  overflow-y: auto;
+}
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .compact-panel-body,
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .compact-panel-footer,
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .sheet-pane:not([data-spane="analysis"]) {
+  display: none !important;
+}
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .analysis-pane-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Hide legacy verbose controls in compact desktop/side default panel */
+.game-shell:not([data-layout="stack"]) .side-panel .mode-bar,
+.game-shell:not([data-layout="stack"]) .side-panel .controls-grid,
+.game-shell:not([data-layout="stack"]) .side-panel .ai-actions-row,
+.game-shell:not([data-layout="stack"]) .side-panel .audio-bar,
+.game-shell:not([data-layout="stack"]) .side-panel .online-actions-row,
+.game-shell:not([data-layout="stack"]) .side-panel .archive-actions-bar,
+.game-shell:not([data-layout="stack"]) .side-panel .side-export-row,
+.game-shell:not([data-layout="stack"]) .side-panel .practice-toggle,
+.game-shell:not([data-layout="stack"]) .side-panel .status-banner,
+.game-shell:not([data-layout="stack"]) .side-panel .turn-indicator,
+.game-shell:not([data-layout="stack"]) .side-panel .result-banner,
+.game-shell:not([data-layout="stack"]) .side-panel .panel-header,
+.game-shell:not([data-layout="stack"]) .side-panel .sheet-pane[data-spane="options"],
+.game-shell:not([data-layout="stack"]) .side-panel .sheet-pane[data-spane="settings"] {
+  display: none !important;
+}
+
+/* Landscape phone (side layout): mobile-controls-bar handles bottom actions */
+.game-shell[data-layout="side"] .compact-panel-footer,
+.game-shell[data-layout="side"] .panel-header-row {
+  display: none !important;
+}
+
+/* Keep replay top-nav unclipped at top of viewport */
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .board-stage {
+  height: 100%;
+  max-height: 100dvh;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 10px 14px 10px;
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .game-top-nav {
+  flex-shrink: 0;
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .game-board-host {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .board-wrapper {
+  max-height: 100%;
+}
+
+/* Header row (44px) */
+.panel-header-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 40px;
+  height: 42px;
+  flex-shrink: 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--panel-border, rgba(217, 164, 65, 0.2));
+}
+.panel-header-title {
+  font-family: 'Noto Serif', Georgia, serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent-gold, #e6b85c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.panel-analyze-btn {
+  padding: 5px 10px;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.panel-analyze-btn[hidden] {
+  display: none !important;
+}
+.panel-menu-btn {
+  width: 34px;
+  min-width: 34px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Overflow popover menu */
+.panel-overflow-menu {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  z-index: 90;
+  min-width: 210px;
+  max-width: 260px;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(24, 18, 13, 0.97);
+  border: 1px solid rgba(217, 164, 65, 0.42);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+[data-theme="ngoc-bich"] .panel-overflow-menu {
+  background: rgba(12, 30, 26, 0.97);
+  border-color: rgba(110, 231, 183, 0.35);
+}
+.panel-overflow-menu[hidden] {
+  display: none !important;
+}
+.panel-menu-item,
+.p-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary, #f4ebdc);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.panel-menu-item:hover,
+.panel-menu-item:focus-visible,
+.p-menu-item:hover,
+.p-menu-item:focus-visible {
+  background: rgba(217, 164, 65, 0.18);
+  outline: none;
+}
+.panel-menu-item:disabled,
+.p-menu-item:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+.panel-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.panel-menu-note,
+.p-menu-note {
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: var(--text-muted, #bba98d);
+}
+
+/* Compact player cards & 1-line captured tray */
+.game-shell:not([data-layout="stack"]) .compact-panel-body .player-card {
+  padding: 6px 9px;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.game-shell:not([data-layout="stack"]) .compact-panel-body .captured-tray {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  min-height: 18px;
+  max-height: 20px;
+  -webkit-mask-image: linear-gradient(90deg, #000 84%, transparent);
+  mask-image: linear-gradient(90deg, #000 84%, transparent);
+}
+
+/* Move list flex container (ONLY scrollable region in default panel) */
+.game-shell:not([data-layout="stack"]) .compact-panel-body .sheet-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .compact-panel-body .sheet-pane[data-spane="moves"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .compact-panel-body .moves-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px 8px;
+  gap: 5px;
+}
+.game-shell:not([data-layout="stack"]) .compact-panel-body .moves-list {
+  flex: 1 1 auto;
+  min-height: 132px;
+  max-height: none;
+  overflow-y: auto;
+}
+.game-shell:not([data-layout="stack"]) .compact-panel-body .review-bar {
+  min-height: 32px;
+  height: 34px;
+  flex-shrink: 0;
+}
+.game-shell:not([data-layout="stack"]) .compact-panel-body .review-btn {
+  min-height: 28px;
+  height: 30px;
+  padding: 2px 6px;
+}
+
+/* 1-line status strip */
+.compact-status-line {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #f4ebdc);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(217, 164, 65, 0.18);
+  border-radius: 8px;
+  padding: 5px 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+/* Bottom mode-specific action row */
+.panel-action-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-action-row > .pill-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 7px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mobile stack: keep compact header/footer hidden inside sheet (phone uses mobile-controls-bar + sheet tabs) */
+.game-shell[data-layout="stack"] .panel-header-row,
+.game-shell[data-layout="stack"] .compact-panel-footer,
+.game-shell[data-layout="stack"] .compact-status-line,
+.game-shell[data-layout="stack"] .panel-action-row {
+  display: none !important;
+}
+.game-shell[data-layout="stack"] .compact-panel-body {
+  display: contents;
+}
+
+/* =========================================================
+   Phase 3: Full-Swap Analysis Panel (Blocks A-G)
+   ========================================================= */
+.analysis-panel {
+  margin-top: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  gap: 6px;
+}
+.an-sticky-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 2px 0 6px;
+  border-bottom: 1px solid var(--panel-border, rgba(217, 164, 65, 0.24));
+}
+.an-back-btn {
+  padding: 4px 9px;
+  min-height: 30px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.an-header-title {
+  font-family: 'Noto Serif', Georgia, serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-gold, #e6b85c);
+  white-space: nowrap;
+}
+.an-preset-menu,
+.an-more-menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  z-index: 95;
+  min-width: 210px;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(24, 18, 13, 0.97);
+  border: 1px solid rgba(217, 164, 65, 0.42);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+[data-theme="ngoc-bich"] .an-preset-menu,
+[data-theme="ngoc-bich"] .an-more-menu {
+  background: rgba(12, 30, 26, 0.97);
+  border-color: rgba(110, 231, 183, 0.35);
+}
+.an-preset-menu[hidden],
+.an-more-menu[hidden] {
+  display: none !important;
+}
+.an-run-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.an-verdict-card,
+.an-quality-card {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(217, 164, 65, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.an-verdict-card[hidden],
+.an-quality-card[hidden] {
+  display: none !important;
+}
+.an-scroll-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+.an-card {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(217, 164, 65, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.an-card[hidden] {
+  display: none !important;
+}
+.an-verdict-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.an-verdict-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #f4ebdc);
+}
+.an-verdict-score {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-gold, #e6b85c);
+  font-variant-numeric: tabular-nums;
+}
+.an-win-bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #23262e;
+}
+.an-win-red {
+  height: 100%;
+  background: linear-gradient(90deg, #b7322c, #e05a54);
+  transition: width 200ms ease;
+}
+.an-win-black {
+  flex: 1 1 auto;
+  height: 100%;
+  background: #2d3340;
+}
+.an-verdict-sub {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted, #bba98d);
+}
+.an-quality-headline {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary, #f4ebdc);
+}
+.an-quality-detail {
+  font-size: 12px;
+  color: var(--text-muted, #bba98d);
+  line-height: 1.4;
+}
+.an-quality-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.an-pv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.an-pv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.an-pv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 164, 65, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary, #f4ebdc);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.an-pv-chip:hover {
+  border-color: var(--accent-gold, #e6b85c);
+}
+.an-pv-chip.is-active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #e0f2fe;
+}
+.an-pv-num {
+  font-size: 10px;
+  opacity: 0.72;
+}
+.an-pv-piece-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.12);
+}
+.an-pv-piece-dot.is-red {
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+}
+.an-pv-piece-dot.is-black {
+  color: #cbd5e1;
+  border: 1px solid rgba(203, 213, 225, 0.45);
+}
+.an-pv-hint {
+  font-size: 11px;
+  color: var(--text-muted, #bba98d);
+}
+.an-graph-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--text-muted, #bba98d);
+  padding: 2px 4px 0;
+}
+.an-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.an-run-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+.an-live-hint {
+  font-size: 11.5px;
+  color: var(--text-muted, #bba98d);
+  text-align: center;
+}
+.an-run-btns {
+  display: flex;
+  gap: 6px;
+}
+.an-run-btns > button {
+  flex: 1 1 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .an-win-red {
+    transition: none !important;
+  }
 }

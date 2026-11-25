@@ -22,6 +22,7 @@ import { leakTracker } from '../app/router.js';
 import { LayoutManager } from '../ui/layoutManager.js';
 import { MoveStrip } from '../ui/moveStrip.js';
 import { BottomSheet } from '../ui/bottomSheet.js';
+import { HapticsManager } from '../ui/haptics.js';
 import { AI_LEVELS } from '../ai/levels.js';
 
 export function createGameScreen(ctx) {
@@ -221,6 +222,10 @@ export function createGameScreen(ctx) {
         openSettingsModal(ctx, 'appearance', ev.currentTarget);
       });
 
+      const haptics = new HapticsManager({
+        isEnabled: () => ctx.settingsStore.get().haptics !== false,
+      });
+
       controller = new GameController({
         variant,
         mode,
@@ -232,6 +237,7 @@ export function createGameScreen(ctx) {
         initialFen,
         theme: ctx.getTheme(),
         sfx: ctx.sfx,
+        haptics,
         aiClient,
         pikafishClient,
         testMode: ctx.testMode,
@@ -281,12 +287,18 @@ export function createGameScreen(ctx) {
         rules: controller.activeRules,
         theme: ctx.getTheme(),
         practiceMode: controller.practiceMode,
+        testMode: ctx.testMode,
+        isTouchLiftEnabled: () => ctx.settingsStore.get().touchLift !== false,
         onSelectPiece: () => {
           boardView.clearHintArrow();
           ctx.sfx.play('select');
+          haptics.trigger('pick', { inReview: controller.isReviewing() });
         },
         onMoveLanded: (move) => controller.onMoveLanded(move),
-        onIllegalMove: () => ctx.sfx.play('illegal'),
+        onIllegalMove: () => {
+          ctx.sfx.play('illegal');
+          haptics.trigger('illegal', { inReview: controller.isReviewing() });
+        },
         onStateChange: (evt) => controller.onStateChange(evt),
         onReturnToLive: () => controller.goToPly(controller.board.history.length),
         onContinueFromHere: () => {
@@ -709,7 +721,10 @@ export function createGameScreen(ctx) {
         sidePanel.closeModal();
         sidePanel = null;
       }
-      boardView = null;
+      if (boardView) {
+        boardView.dispose();
+        boardView = null;
+      }
       ctx.sfx.voice.onCaption = () => {};
     },
   };

@@ -65,20 +65,46 @@ export class MoveStrip {
     };
     this._onOpenClick = () => this.onOpenSheet();
 
-    // Vertical drag-up on strip opens the bottom sheet
+    // Vertical drag-up on strip opens the bottom sheet; short touch tap selects chip immediately
+    this._tapInfo = null;
     this._onPointerDown = (ev) => {
       if (ev.target.closest('[data-testid="sheet-open-btn"]')) return;
       this._dragStartY = ev.clientY;
+      const btn = ev.target.closest('button[data-ply]');
+      if (btn && (ev.pointerType === 'touch' || ev.pointerType === 'pen')) {
+        this._tapInfo = {
+          pointerId: ev.pointerId,
+          x: ev.clientX,
+          y: ev.clientY,
+          ply: Number(btn.dataset.ply),
+        };
+      } else {
+        this._tapInfo = null;
+      }
     };
     this._onPointerMove = (ev) => {
       if (this._dragStartY === null) return;
       if (this._dragStartY - ev.clientY > 24) {
         this._dragStartY = null;
+        this._tapInfo = null;
         this.onOpenSheet();
       }
     };
-    this._onPointerUp = () => {
+    this._onPointerUp = (ev) => {
       this._dragStartY = null;
+      if (this._tapInfo && ev.pointerId === this._tapInfo.pointerId) {
+        const dist = Math.hypot(ev.clientX - this._tapInfo.x, ev.clientY - this._tapInfo.y);
+        const ply = this._tapInfo.ply;
+        this._tapInfo = null;
+        if (dist < 10 && Number.isFinite(ply)) {
+          ev.preventDefault();
+          this.onSelectPly(ply);
+        }
+      }
+    };
+    this._onPointerCancel = () => {
+      this._dragStartY = null;
+      this._tapInfo = null;
     };
 
     this.scroller.addEventListener('click', this._onClick);
@@ -86,7 +112,7 @@ export class MoveStrip {
     this.el.addEventListener('pointerdown', this._onPointerDown);
     this.el.addEventListener('pointermove', this._onPointerMove);
     this.el.addEventListener('pointerup', this._onPointerUp);
-    this.el.addEventListener('pointercancel', this._onPointerUp);
+    this.el.addEventListener('pointercancel', this._onPointerCancel);
 
     this.container.appendChild(this.el);
   }
@@ -144,7 +170,7 @@ export class MoveStrip {
       this.el.removeEventListener('pointerdown', this._onPointerDown);
       this.el.removeEventListener('pointermove', this._onPointerMove);
       this.el.removeEventListener('pointerup', this._onPointerUp);
-      this.el.removeEventListener('pointercancel', this._onPointerUp);
+      this.el.removeEventListener('pointercancel', this._onPointerCancel);
       this.el.remove();
     }
   }

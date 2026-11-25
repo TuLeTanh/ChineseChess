@@ -356,6 +356,7 @@ export function createReplayScreen(ctx) {
         startFen: record.start.fen,
         moves: (record.moves || []).map((m) => m.m),
         variant: record.variant,
+        isUnfinished: record.result === 'unfinished',
         onSelectPly: (ply, opts) => goToPly(ply, opts),
         onTryMove: (ply, iccs) => {
           if (isJieqi || !iccs || iccs.length !== 4) return;
@@ -374,7 +375,7 @@ export function createReplayScreen(ctx) {
       goToPly(board.history.length, { isScrub: true });
 
       analysisPanel.loadCached().then((cached) => {
-        if (disposed || isJieqi) return;
+        if (disposed || isJieqi || record.result === 'unfinished') return;
         if (!cached && route.query?.analyze === '1') {
           if (route.query?.auto === '1') {
             analysisPanel.start({ preset: route.query?.preset || 'fast', forceEngine: route.query?.engine });

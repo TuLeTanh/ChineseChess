@@ -282,7 +282,7 @@ export function createLibraryScreen(ctx) {
           };
 
           actions.appendChild(mkBtn('Xem lại', 'is-selected', openReview));
-          if (rec.variant === 'xiangqi') {
+          if (rec.variant === 'xiangqi' && rec.result !== 'unfinished') {
             actions.appendChild(
               mkBtn('Phân tích', '', () => {
                 ctx.router.navigate('/play/cotuong/review', { id: rec.id, analyze: '1' });

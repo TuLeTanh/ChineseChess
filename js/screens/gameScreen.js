@@ -169,6 +169,11 @@ export function createGameScreen(ctx) {
       const sidePanelEl = container.querySelector('#side-panel');
       const modalRoot = ctx.modalRoot;
 
+      const isLiveExportLocked = () =>
+        mode === 'online'
+          ? Boolean(onlineBridge && !onlineBridge.over)
+          : Boolean(controller && !controller.isGameOver());
+
       const openSaveExport = () => {
         if (!controller) return;
         const viewedFen = controller.board.snapshotAt(controller.viewPly).fen;
@@ -180,6 +185,7 @@ export function createGameScreen(ctx) {
           ),
           currentFen: viewedFen,
           allowSaveToLibrary: mode !== 'online',
+          isLiveGame: isLiveExportLocked(),
         });
       };
       container.querySelector('[data-testid="top-save-btn"]').addEventListener('click', openSaveExport);
@@ -410,6 +416,7 @@ export function createGameScreen(ctx) {
             ),
             currentFen: viewedFen,
             allowSaveToLibrary: true,
+            isLiveGame: isLiveExportLocked(),
           });
         },
         onAnalyzeGame:
@@ -588,14 +595,7 @@ export function createGameScreen(ctx) {
       const exportRow = document.createElement('div');
       exportRow.className = 'side-export-row';
       exportRow.innerHTML = `<button type="button" class="pill-btn pill-btn-compact" data-action="save-export">💾 Lưu / Xuất</button>`;
-      exportRow.querySelector('button').addEventListener('click', () => {
-        const viewedFen = controller.board.snapshotAt(controller.viewPly).fen;
-        openExportModal(ctx, {
-          record: buildCurrentRecord('unfinished', null, 'manual'),
-          currentFen: viewedFen,
-          allowSaveToLibrary: mode !== 'online',
-        });
-      });
+      exportRow.querySelector('button').addEventListener('click', openSaveExport);
       const audioBar = sidePanelEl.querySelector('.audio-bar');
       if (audioBar) audioBar.parentNode.insertBefore(exportRow, audioBar);
 

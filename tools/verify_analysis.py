@@ -114,10 +114,36 @@ def main() -> int:
             page.evaluate(_seed_record_js("an-test-xq", "xiangqi"))
             page.evaluate(_seed_record_js("an-test-jq", "jieqi"))
 
-            # (e) Integrity rule: live game has ZERO analysis panel or eval bar
+            # (e) Integrity rule: live local & live AI games have ZERO analysis UI and ALL export buttons disabled;
+            # after resigning, export buttons unlock; deep link to unfinished game blocks analysis
+            page.evaluate(_seed_record_js("an-test-unfin", "xiangqi").replace('"result": "black"', '"result": "unfinished"'))
             page.goto(f"{BASE}/?test#/play/cotuong/local", wait_until="networkidle")
             page.wait_for_selector("svg.board-svg", timeout=5000)
             live_an_cnt = page.locator('[data-testid="analysis-panel"], [data-testid="eval-bar"]').count()
+            page.locator('[data-action="save-export"]').click()
+            page.wait_for_selector('[data-exp="fen"]', timeout=4000)
+            local_locked = all(page.locator(f'[data-exp="{k}"]').is_disabled() for k in ("save", "fen", "link", "json", "pgn"))
+            page.keyboard.press("Escape")
+
+            page.goto(f"{BASE}/?test#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
+            page.wait_for_selector("svg.board-svg", timeout=5000)
+            page.locator('[data-action="save-export"]').click()
+            page.wait_for_selector('[data-exp="fen"]', timeout=4000)
+            ai_locked = all(page.locator(f'[data-exp="{k}"]').is_disabled() for k in ("save", "fen", "link", "json", "pgn"))
+            page.keyboard.press("Escape")
+            # Resign AI game -> export buttons unlock
+            page.locator('#side-panel [data-action="resign"]').click()
+            page.locator('.modal-resign-confirm').click()
+            page.wait_for_selector('.modal-export', timeout=6000)
+            page.locator('.modal-export').click()
+            page.wait_for_selector('[data-exp="fen"]', timeout=4000)
+            ai_unlocked_after = all(not page.locator(f'[data-exp="{k}"]').is_disabled() for k in ("save", "fen", "link", "json", "pgn"))
+            page.keyboard.press("Escape")
+
+            # Deep link to unfinished game blocks analysis
+            page.goto(f"{BASE}/?test#/play/cotuong/review?id=an-test-unfin&analyze=1&auto=1", wait_until="networkidle")
+            page.wait_for_selector('[data-testid="analysis-panel"]', timeout=5000)
+            unfin_blocked = page.locator('[data-an="run"]').is_disabled()
 
             # (e2) Cờ Úp archive shows unsupported notice & disabled run button
             page.goto(f"{BASE}/?test#/play/coup/review?id=an-test-jq", wait_until="networkidle")
@@ -125,8 +151,15 @@ def main() -> int:
             jq_notice = page.locator(".an-notice").text_content() or ""
             jq_btn_dis = page.locator('[data-an="run"]').is_disabled()
             results["E_integrity"] = {
-                "status": "PASS" if (live_an_cnt == 0 and "chưa hỗ trợ" in jq_notice.lower() and jq_btn_dis) else "FAIL",
+                "status": "PASS" if (
+                    live_an_cnt == 0 and local_locked and ai_locked and ai_unlocked_after
+                    and unfin_blocked and "chưa hỗ trợ" in jq_notice.lower() and jq_btn_dis
+                ) else "FAIL",
                 "live_an_cnt": live_an_cnt,
+                "local_locked": local_locked,
+                "ai_locked": ai_locked,
+                "ai_unlocked_after": ai_unlocked_after,
+                "unfin_blocked": unfin_blocked,
                 "jq_notice": jq_notice,
             }
 

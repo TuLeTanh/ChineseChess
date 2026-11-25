@@ -95,7 +95,7 @@ def main():
             page.wait_for_timeout(100)
             click_square(page, 4, 7)
             page.wait_for_function("() => window.__board && window.__board.history.length >= 2", timeout=10000)
-            page.wait_for_timeout(450)  # allow 250ms debounced autosave
+            page.wait_for_timeout(700)  # allow slide anim + 250ms debounced autosave
             fen_before = page.evaluate("() => window.__board.toFen()")
 
             page.goto(f"{base}#/", wait_until="networkidle")
@@ -104,7 +104,7 @@ def main():
             page.wait_for_selector("svg.board-svg", timeout=6000)
             page.wait_for_function("() => window.__board && window.__board.history.length >= 2", timeout=6000)
             fen_after = page.evaluate("() => window.__board.toFen()")
-            assert fen_before.split(" ")[0] == fen_after.split(" ")[0], f"Xiangqi resume FEN mismatch"
+            assert fen_before.split(" ")[0] == fen_after.split(" ")[0], f"Xiangqi resume FEN mismatch: {fen_before} vs {fen_after}"
 
             # Resign -> auto-saves finished game to library
             page.locator('[data-action="resign"]').click()
@@ -133,9 +133,19 @@ def main():
             assert jq_fen_before == jq_fen_after, f"Jieqi resume mismatch: {jq_fen_before} vs {jq_fen_after}"
             assert page.locator('[data-action="undo"]').is_disabled(), "Undo must remain disabled in Cờ Úp AI"
 
-            # Save this Cờ Úp game manually via "Lưu / Xuất" modal + test downloads
+            # Integrity check: during live game, export buttons are disabled
             page.locator('[data-action="save-export"]').click()
-            page.wait_for_selector('[data-exp="save"]', timeout=4000)
+            page.wait_for_selector('[data-exp="fen"]', timeout=4000)
+            assert page.locator('[data-exp="fen"]').is_disabled(), "FEN copy must be disabled during live game"
+            assert page.locator('[data-exp="json"]').is_disabled(), "JSON export must be disabled during live game"
+            page.keyboard.press("Escape")
+
+            # Resign to end Cờ Úp game -> export buttons unlock
+            page.locator('#side-panel [data-action="resign"]').click()
+            page.locator('.modal-resign-confirm').click()
+            page.wait_for_selector('.modal-export', timeout=6000)
+            page.locator('.modal-export').click()
+            page.wait_for_selector('[data-exp="save"]:not(:disabled)', timeout=4000)
             page.locator('[data-exp="save"]').click()
             page.wait_for_timeout(200)
 

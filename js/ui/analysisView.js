@@ -78,6 +78,7 @@ export class AnalysisPanel {
     this.startFen = opts.startFen;
     this.moves = opts.moves || [];
     this.variant = opts.variant || 'xiangqi';
+    this.isUnfinished = Boolean(opts.isUnfinished);
     this.onSelectPly = opts.onSelectPly || (() => {});
     this.onTryMove = opts.onTryMove || null;
     this.onResultChange = opts.onResultChange || null;
@@ -140,6 +141,12 @@ export class AnalysisPanel {
     if (this.variant === 'jieqi') {
       this.noticeEl.hidden = false;
       this.noticeEl.textContent = 'Cờ Úp chưa hỗ trợ phân tích.';
+      this.runBtn.disabled = true;
+      return;
+    }
+    if (this.isUnfinished) {
+      this.noticeEl.hidden = false;
+      this.noticeEl.textContent = 'Ván chưa kết thúc — phân tích chỉ khả dụng sau khi kết thúc ván.';
       this.runBtn.disabled = true;
       return;
     }

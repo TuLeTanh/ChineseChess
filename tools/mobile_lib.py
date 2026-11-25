@@ -88,7 +88,7 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
         if self.path.startswith("/api/online/info"):
-            body = b'{"ok":false,"players":0}'
+            body = b'{"ok":true,"players":0,"version":"1.0"}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))

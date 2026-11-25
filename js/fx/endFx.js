@@ -213,13 +213,13 @@ export function playEndFx(opts) {
     </g>
 
     <!-- Main swords -->
-    <g class="fx-swords" filter="url(#fx-sword-shadow)" opacity="0">
+    <g class="fx-swords" ${coarse ? '' : 'filter="url(#fx-sword-shadow)"'} opacity="0">
       <g class="fx-sword-left"><use href="#fx-jian-gold" width="180" height="680" x="-90" y="-340"/></g>
       <g class="fx-sword-right"><use href="#fx-jian-jade" width="180" height="680" x="-90" y="-340"/></g>
     </g>
 
     <!-- Resign white flag -->
-    <g class="fx-flag" opacity="0" filter="url(#fx-sword-shadow)">
+    <g class="fx-flag" opacity="0" ${coarse ? '' : 'filter="url(#fx-sword-shadow)"'}>
       <line x1="485" y1="340" x2="485" y2="730" stroke="#C8B9A6" stroke-width="9" stroke-linecap="round"/>
       <circle cx="485" cy="336" r="10" fill="#E6D6C0" stroke="#6E6254" stroke-width="2"/>
       <path class="fx-flag-cloth" transform="translate(490 352)" d="${buildFlagClothPath(0)}"
@@ -232,7 +232,7 @@ export function playEndFx(opts) {
         <text class="fx-glyph-text" x="525" y="${kind === 'resign' ? 600 : 625}" text-anchor="middle"
           font-family="XiangqiCalligraphy, KaiTi, serif" font-size="${glyphSize}"
           fill="${titleFill}" stroke="${titleStroke}" stroke-width="${kind === 'win' ? 4.5 : 2.5}"
-          paint-order="stroke" filter="url(#fx-tear-filter)">${glyph}</text>
+          paint-order="stroke" ${coarse ? '' : 'filter="url(#fx-tear-filter)"'}>${glyph}</text>
       </g>
       <text class="fx-caption-text" x="525" y="758" text-anchor="middle"
         font-family="Segoe UI, system-ui, sans-serif" font-size="44" font-weight="800"
@@ -247,7 +247,7 @@ export function playEndFx(opts) {
     </g>
 
     <!-- Red square seal 印章 (win only) -->
-    <g class="fx-seal" transform="translate(745 640) rotate(-6) scale(1.6)" opacity="0" filter="url(#fx-seal-rough)">
+    <g class="fx-seal" transform="translate(745 640) rotate(-6) scale(1.6)" opacity="0" ${coarse ? '' : 'filter="url(#fx-seal-rough)"'}>
       <rect x="-54" y="-54" width="108" height="108" rx="10" fill="#B8231A" stroke="#F4DFC0" stroke-width="3.5"/>
       <rect x="-46" y="-46" width="92" height="92" rx="6" fill="none" stroke="#F4DFC0" stroke-width="1.6" opacity="0.75"/>
       <text x="0" y="25" text-anchor="middle" font-family="XiangqiCalligraphy, KaiTi, serif"
@@ -311,7 +311,7 @@ export function playEndFx(opts) {
     const rect = container.getBoundingClientRect();
     cssW = Math.max(1, Math.round(rect.width));
     cssH = Math.max(1, Math.round(rect.height));
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(coarse ? 1.5 : 2, window.devicePixelRatio || 1);
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -391,7 +391,9 @@ export function playEndFx(opts) {
       }
 
       if (boardSvg) {
-        boardSvg.style.filter = `brightness(${lerp(1, 0.60, dimP).toFixed(3)})`;
+        if (!coarse) {
+          boardSvg.style.filter = `brightness(${lerp(1, 0.60, dimP).toFixed(3)})`;
+        }
         boardSvg.style.transform = `translate(${shakeX.toFixed(2)}px, ${shakeY.toFixed(2)}px) scale(${pushScale.toFixed(4)})`;
       }
       vignette.style.opacity = (dimP * 0.85).toFixed(3);

@@ -114,7 +114,7 @@ def _run_t1_to_t11_and_perf(
     }
 
     # ---------------- T2: Drag + lift offset ----------------
-    # Drag Black cannon (1, 2) -> (4, 2)
+    # Drag Black cannon (1, 2) -> (4, 2); account for 0.9-cell lift so lifted piece lands on (4, 2)
     geom = get_board_geom(page)
     fx, fy = square_to_client(geom, 1, 2)
     tx, ty = square_to_client(geom, 4, 2)
@@ -138,7 +138,7 @@ def _run_t1_to_t11_and_perf(
             drag_frames += 1
             save_screenshot(page, f"drag_seq_{drag_frames}.png")
 
-    touch.drag(fx, fy, tx, ty, steps=12, step_ms=18, on_step=on_step)
+    touch.drag(fx, fy, tx, ty + 0.85 * geom["cellY"], steps=12, step_ms=18, on_step=on_step)
     page.wait_for_timeout(320)
     ply2 = page.evaluate("window.__board.history.length")
     max_lift_cells = round(max(lift_samples), 2) if lift_samples else 0.0

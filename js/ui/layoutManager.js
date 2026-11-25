@@ -102,7 +102,10 @@ export class LayoutManager {
     docStyle.setProperty('--vvh', `${vvh}px`);
 
     const mode = computeLayoutMode(w, h);
-    const shortStack = mode === 'stack' && h <= 600;
+    const defaultStackFreeH = h - (44 + 44 + 36 + 44 + 52) - safe.top - safe.bottom;
+    const stackAvailW = w - safe.left - safe.right;
+    const shortStack =
+      mode === 'stack' && (h <= 600 || defaultStackFreeH * (1050 / 1150) < stackAvailW * 0.97);
     const chrome = shortStack
       ? {
           topBar: 44,

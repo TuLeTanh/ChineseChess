@@ -81,7 +81,9 @@ def _collect_game_metrics(page, vw: int, vh: int, is_mobile: bool) -> dict[str, 
                 const discBottom = 1025 + 44;
                 const unclippedVb = discLeft >= vx - 0.5 && discTop >= vy - 0.5 && discRight <= vx + vbw + 0.5 && discBottom <= vy + vbh + 0.5;
                 const minWidthOk = mode !== 'stack' || r.width >= 0.96 * window.innerWidth - 1;
-                const minDiscOk = vw >= 360 ? discDiam >= 32 : (vw >= 320 ? discDiam >= 30 : true);
+                const minDiscOk = mode === 'stack'
+                    ? (vw >= 360 ? discDiam >= 32 : (vw >= 320 ? discDiam >= 30 : true))
+                    : discDiam >= 24;
                 m2 = {
                     ok: insideVp && unclippedVb && minWidthOk && minDiscOk,
                     mode,

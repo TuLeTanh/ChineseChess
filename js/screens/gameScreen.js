@@ -150,7 +150,7 @@ export function createGameScreen(ctx) {
         <main id="board-stage" class="board-stage">
           <div class="game-top-nav">
             <button type="button" class="game-nav-btn" data-nav="lobby" title="Về sảnh">← Sảnh</button>
-            <div class="game-top-chip" data-testid="top-mode-chip" data-nowrap="1">${topChipText}</div>
+            <div class="game-top-chip" data-testid="top-mode-chip">${topChipText}</div>
             <div class="game-top-right">
               <button type="button" class="game-nav-btn game-top-save" data-testid="top-save-btn" aria-label="Lưu hoặc xuất ván cờ" title="Lưu / Xuất">💾</button>
               <button type="button" class="game-nav-btn" data-nav="settings" aria-label="Cài đặt" title="Cài đặt">⚙</button>

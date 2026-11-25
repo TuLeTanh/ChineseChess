@@ -3887,6 +3887,14 @@ body.mode-effects .board-stage {
     width: 44px;
     height: 44px;
   }
+  .game-top-nav .game-nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

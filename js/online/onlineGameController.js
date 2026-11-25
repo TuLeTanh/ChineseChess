@@ -127,9 +127,15 @@ export class OnlineGameBridge {
       this.conn.send('game.move', { gameId: this.gameId, move: iccs });
     };
 
-    // Intercept resign callback from sidePanel modal
+    // Intercept resign & draw callbacks from sidePanel
     this.sidePanel.callbacks.onResign = () => {
       this.conn?.send('game.resign', {});
+    };
+    this.sidePanel.callbacks.onOnlineDraw = () => {
+      if (!this.over) {
+        this.conn?.send('game.draw.offer', {});
+        this.boardView.showToast('Đã gửi lời mời hòa');
+      }
     };
 
     // Start 200 ms clock UI ticker

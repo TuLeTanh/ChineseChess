@@ -3,6 +3,7 @@ import { GameStatus } from '../rules.js';
 import { pieceSymbolId } from '../render/pieceSvg.js';
 import { AI_LEVELS } from '../ai/levels.js';
 import { NON_GENERAL_KINDS } from '../jieqi/rules.js';
+import { panelPolicy } from '../app/panelPolicy.js';
 
 /**
  * Format a game-over status into Vietnamese result text (supports 2-player and AI modes).
@@ -74,12 +75,18 @@ export class SidePanel {
     this.showPool = opts.showPool !== false;
     this.practiceMode = Boolean(opts.practiceMode) && !this.isJieqi;
     this.mode = opts.mode || 'pvp';
+    this.isArchive = Boolean(opts.isArchive);
+    this.isUnfinishedArchive = Boolean(opts.isUnfinishedArchive);
     this.playerSide = opts.playerSide || RED;
     this.aiLevel = opts.aiLevel || 'nghiep-du';
     this.engineType = opts.engineType || 'js';
     this.pikafishInfo = opts.pikafishInfo || { available: false };
     this.hintsLeft = opts.hintsLeft ?? 3;
     this.resigned = false;
+    this.resignedSide = null;
+    this.localDrawAgreed = false;
+    this.analysisOpen = false;
+    this._savedMoveScrollTop = 0;
     this.aiThinking = false;
     this.aiInfo = null;
     this.muted = Boolean(opts.muted);
@@ -135,8 +142,111 @@ export class SidePanel {
   }
 
   /** Set resigned flag. */
-  setResigned(resigned) {
+  setResigned(resigned, side = null) {
     this.resigned = Boolean(resigned);
+    this.resignedSide = side;
+  }
+
+  /** Compute current panel policy from live state. */
+  getPolicy() {
+    const isOver =
+      this.resigned ||
+      this.localDrawAgreed ||
+      this.gameStatus === GameStatus.Checkmate ||
+      this.gameStatus === GameStatus.Stalemate ||
+      this.gameStatus === GameStatus.DrawRepetition ||
+      this.gameStatus === GameStatus.DrawNoCapture;
+    const status = this.isArchive
+      ? this.isUnfinishedArchive
+        ? 'unfinished'
+        : 'finished'
+      : isOver
+        ? 'finished'
+        : 'live';
+    return panelPolicy({
+      variant: this.isJieqi ? 'jieqi' : 'xiangqi',
+      mode: this.mode,
+      status,
+      isArchive: this.isArchive,
+    });
+  }
+
+  /** Swap whole panel between compact panel and full Analysis panel (P5). */
+  setAnalysisMode(open) {
+    const next = Boolean(open);
+    if (this.analysisOpen === next) return;
+    this.analysisOpen = next;
+    if (next) {
+      this._savedMoveScrollTop = this.moveScroll ? this.moveScroll.scrollTop : 0;
+      this.closeOverflowMenu();
+      this.container.classList.add('is-analysis-open');
+    } else {
+      this.container.classList.remove('is-analysis-open');
+      if (this.moveScroll) this.moveScroll.scrollTop = this._savedMoveScrollTop;
+      if (this.panelAnalyzeBtn && !this.panelAnalyzeBtn.hidden) {
+        try { this.panelAnalyzeBtn.focus({ preventScroll: true }); } catch {}
+      }
+    }
+  }
+
+  closeOverflowMenu() {
+    if (!this.overflowMenu || this.overflowMenu.hidden) return;
+    this.overflowMenu.hidden = true;
+    if (this.panelMenuBtn) this.panelMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  /** Confirm modal for 2-player local draw agreement (P3). */
+  requestLocalDraw() {
+    this.modalRoot.hidden = false;
+    this.modalRoot.innerHTML = `
+      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="local-draw-title">
+        <div class="modal-card">
+          <h3 id="local-draw-title">Hai bên đồng ý hòa?</h3>
+          <p>Ván cờ sẽ kết thúc với kết quả hòa theo thỏa thuận của cả hai người chơi.</p>
+          <div class="modal-actions">
+            <button type="button" class="pill-btn modal-cancel">Hủy</button>
+            <button type="button" class="pill-btn pill-btn-gold modal-local-draw-ok">Đồng ý hòa</button>
+          </div>
+        </div>
+      </div>
+    `;
+    this.modalRoot.querySelector('.modal-cancel').addEventListener('click', () => this.closeModal());
+    this.modalRoot.querySelector('.modal-local-draw-ok').addEventListener('click', () => {
+      this.closeModal();
+      if (this.callbacks.onLocalDraw) this.callbacks.onLocalDraw();
+    });
+    this.modalRoot.querySelector('.modal-backdrop').addEventListener('click', (ev) => {
+      if (ev.target === ev.currentTarget) this.closeModal();
+    });
+  }
+
+  /** Confirm modal for 2-player local resign: asks which side resigns (P3). */
+  requestLocalResign() {
+    this.modalRoot.hidden = false;
+    this.modalRoot.innerHTML = `
+      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="local-resign-title">
+        <div class="modal-card">
+          <h3 id="local-resign-title">Bên nào đầu hàng?</h3>
+          <p>Chọn bên đầu hàng để kết thúc ván cờ hiện tại.</p>
+          <div class="modal-actions">
+            <button type="button" class="pill-btn modal-cancel">Hủy</button>
+            <button type="button" class="pill-btn pill-btn-danger" data-lresign="red">Đỏ đầu hàng</button>
+            <button type="button" class="pill-btn pill-btn-danger" data-lresign="black">Đen đầu hàng</button>
+          </div>
+        </div>
+      </div>
+    `;
+    this.modalRoot.querySelector('.modal-cancel').addEventListener('click', () => this.closeModal());
+    this.modalRoot.querySelectorAll('[data-lresign]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const side = btn.dataset.lresign;
+        this.closeModal();
+        if (this.callbacks.onLocalResign) this.callbacks.onLocalResign(side);
+      });
+    });
+    this.modalRoot.querySelector('.modal-backdrop').addEventListener('click', (ev) => {
+      if (ev.target === ev.currentTarget) this.closeModal();
+    });
   }
 
   /** Update review state (viewPly, hasNewMoves, autoPlaying). */
@@ -366,6 +476,7 @@ export class SidePanel {
     }
 
     this._syncAiCardsAndButtons(Boolean(resultText) || isReview);
+    this._syncCompactHeaderAndActions({ isReview, canUndo, undoDisallowed, resultText, statusText: resultText || ((!isReview && status === GameStatus.Check) || (isReview && snap.gaveCheck) ? 'Chiếu tướng!' : this.aiThinking ? 'Máy đang nghĩ…' : viewedSide === RED ? 'Lượt của Đỏ' : 'Lượt của Đen') });
     this._renderCapturedTray(this.blackTray, this.board.capturedByAt(BLACK, clampedView), 'black');
     this._renderCapturedTray(this.redTray, this.board.capturedByAt(RED, clampedView), 'red');
     this._renderMoveList(Boolean(opts.skipScroll));
@@ -466,26 +577,202 @@ export class SidePanel {
     this.resignBtn.disabled = !vsAi || disableAiActions || this.resigned;
   }
 
+  _syncCompactHeaderAndActions({ isReview, canUndo, undoDisallowed, resultText, statusText }) {
+    const pol = this.getPolicy();
+    if (this.panelAnalyzeBtn) {
+      this.panelAnalyzeBtn.hidden = !pol.showAnalysis;
+    }
+    if (this.compactStatusLine) {
+      this.compactStatusLine.textContent = statusText;
+      this.compactStatusLine.classList.toggle('is-check', statusText === 'Chiếu tướng!');
+      this.compactStatusLine.classList.toggle('is-gameover', Boolean(resultText));
+    }
+    if (this.panelActionRow) {
+      const gameOver = Boolean(resultText) || this.resigned || this.localDrawAgreed;
+      const btns = [];
+      if (pol.isArchive) {
+        btns.push(
+          { act: 'return-live', label: 'Về hiện tại', cls: '', disabled: this.viewPly >= this.board.history.length },
+          { act: 'continue-here', label: 'Chơi tiếp từ đây', cls: 'pill-btn-gold', disabled: false }
+        );
+      } else if (pol.mode === 'ai') {
+        btns.push({ act: 'resign', label: 'Đầu hàng', cls: 'pill-btn-resign', disabled: gameOver });
+      } else if (pol.mode === 'online') {
+        btns.push(
+          { act: 'online-draw', label: 'Xin hòa', cls: '', disabled: gameOver },
+          { act: 'online-resign', label: 'Đầu hàng', cls: 'pill-btn-resign', disabled: gameOver }
+        );
+      } else {
+        // Local 2-player: [Đi lại] [Hòa] [Đầu hàng]
+        btns.push(
+          { act: 'undo', label: 'Đi lại', cls: '', disabled: !canUndo || undoDisallowed },
+          { act: 'local-draw', label: 'Hòa', cls: '', disabled: gameOver },
+          { act: 'local-resign', label: 'Đầu hàng', cls: 'pill-btn-resign', disabled: gameOver }
+        );
+      }
+      this.panelActionRow.innerHTML = btns
+        .map(
+          (b) =>
+            `<button type="button" class="pill-btn pill-btn-compact ${b.cls}" data-pact="${b.act}" ${b.disabled ? 'disabled' : ''}>${b.label}</button>`
+        )
+        .join('');
+    }
+    this._renderOverflowMenu(pol, Boolean(resultText) || this.resigned || this.localDrawAgreed);
+  }
+
+  _renderOverflowMenu(pol, gameOver) {
+    if (!this.overflowMenu) return;
+    const items = [];
+    for (const id of pol.menuItems) {
+      if (id === 'hint') {
+        const dis =
+          gameOver || this.aiThinking || this.hintsLeft <= 0 || this.board.sideToMove !== this.playerSide;
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="hint" ${dis ? 'disabled' : ''}>💡 Gợi ý (${this.hintsLeft})</button>`);
+      } else if (id === 'ai_config') {
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="ai_config">🤖 Đổi cấp độ / bên / engine</button>`);
+      } else if (id === 'new_game') {
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="new_game">＋ Ván mới</button>`);
+      } else if (id === 'flip') {
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="flip">⇅ Xoay bàn</button>`);
+      } else if (id === 'theme') {
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="theme">🎨 Giao diện: ${this.theme.name}</button>`);
+      } else if (id === 'audio') {
+        const sndTxt = this.muted ? 'Tắt' : `${Math.round(this.volume * 100)}%`;
+        const vTxt = this.voiceEnabled ? 'Bật' : 'Tắt';
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="mute">🔊 Âm thanh: ${sndTxt}</button>`);
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="voice">🗣 Giọng nói: ${vTxt}</button>`);
+      } else if (id === 'export') {
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="export">💾 Lưu / Xuất</button>`);
+      } else if (id === 'settings') {
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="settings">⚙ Cài đặt</button>`);
+      } else if (id === 'jieqi_analysis_note') {
+        items.push(`<div class="p-menu-note" data-testid="jieqi-an-menu-note">Cờ Úp chưa hỗ trợ phân tích</div>`);
+      }
+    }
+    this.overflowMenu.innerHTML = items.join('');
+  }
+
+  _openAiConfigModal() {
+    if (!this.modalRoot) return;
+    const pfAvail = !this.isJieqi && Boolean(this.pikafishInfo && this.pikafishInfo.available);
+    let side = this.playerSide;
+    let level = this.aiLevel;
+    let eng = this.engineType;
+    const levelOpts = AI_LEVELS.map((l) => `<option value="${l.id}" ${l.id === level ? 'selected' : ''}>${l.name}</option>`).join('');
+    this.modalRoot.hidden = false;
+    this.modalRoot.innerHTML = `
+      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="ai-cfg-title">
+        <div class="modal-card setup-modal">
+          <h3 id="ai-cfg-title">Đổi cấp độ / bên / engine</h3>
+          <p class="set-hint">Áp dụng cho ván mới.</p>
+          <div class="set-field" style="margin-top:8px">
+            <label>Bạn cầm</label>
+            <div class="set-seg-2">
+              <button type="button" class="mini-seg-btn ${side === RED ? 'is-selected' : ''}" data-cside="red">Đỏ</button>
+              <button type="button" class="mini-seg-btn ${side === BLACK ? 'is-selected' : ''}" data-cside="black">Đen</button>
+            </div>
+          </div>
+          <div class="set-field" style="margin-top:8px">
+            <label>Cấp độ</label>
+            <select class="ai-level-select cfg-lvl">${levelOpts}</select>
+          </div>
+          ${
+            pfAvail
+              ? `<div class="set-field" style="margin-top:8px">
+                  <label>Động cơ</label>
+                  <div class="set-seg-2">
+                    <button type="button" class="mini-seg-btn ${eng === 'pikafish' ? 'is-selected' : ''}" data-ceng="pikafish">Pikafish</button>
+                    <button type="button" class="mini-seg-btn ${eng !== 'pikafish' ? 'is-selected' : ''}" data-ceng="js">Nội bộ (JS)</button>
+                  </div>
+                </div>`
+              : ''
+          }
+          <div class="modal-actions" style="margin-top:14px">
+            <button type="button" class="pill-btn modal-cancel">Hủy</button>
+            <button type="button" class="pill-btn pill-btn-gold modal-cfg-ok">Áp dụng (Ván mới)</button>
+          </div>
+        </div>
+      </div>
+    `;
+    this.modalRoot.querySelectorAll('[data-cside]').forEach((b) => {
+      b.addEventListener('click', () => {
+        side = b.dataset.cside;
+        this.modalRoot.querySelectorAll('[data-cside]').forEach((x) => x.classList.toggle('is-selected', x === b));
+      });
+    });
+    this.modalRoot.querySelectorAll('[data-ceng]').forEach((b) => {
+      b.addEventListener('click', () => {
+        eng = b.dataset.ceng;
+        this.modalRoot.querySelectorAll('[data-ceng]').forEach((x) => x.classList.toggle('is-selected', x === b));
+      });
+    });
+    this.modalRoot.querySelector('.modal-cancel').addEventListener('click', () => this.closeModal());
+    this.modalRoot.querySelector('.modal-backdrop').addEventListener('click', (ev) => {
+      if (ev.target === ev.currentTarget) this.closeModal();
+    });
+    this.modalRoot.querySelector('.modal-cfg-ok').addEventListener('click', () => {
+      level = this.modalRoot.querySelector('.cfg-lvl').value;
+      this.closeModal();
+      this.aiLevel = level;
+      if (this.callbacks.onAiLevelChange) this.callbacks.onAiLevelChange(level);
+      if (pfAvail && eng !== this.engineType && this.callbacks.onEngineChange) {
+        this.engineType = eng;
+        this.callbacks.onEngineChange(eng);
+      }
+      if (side !== this.playerSide && this.callbacks.onPlayerSideChange) {
+        this.playerSide = side;
+        this.callbacks.onPlayerSideChange(side);
+      } else if (this.callbacks.onNewGame) {
+        this.callbacks.onNewGame();
+      }
+    });
+  }
+
   _buildDom() {
     const levelOptions = AI_LEVELS.map(
       (l) => `<option value="${l.id}">${l.name}</option>`
     ).join('');
 
     this.container.innerHTML = `
-      <div class="variant-header-pill" hidden></div>
-
-      <section class="player-card player-card-black" data-side="black">
-        <div class="player-header">
-          <div class="player-avatar avatar-black">將</div>
-          <div class="player-meta">
-            <div class="player-name" data-nowrap="1">Đen</div>
-            <div class="player-sub">Quân Đen</div>
+      <div class="compact-panel-body" data-testid="compact-panel-body">
+        <div class="panel-header-row" data-testid="panel-header-row">
+          <button type="button" class="pill-btn pill-btn-gold panel-analyze-btn" data-testid="panel-analyze-btn" hidden>Phân tích</button>
+          <div class="panel-menu-wrap">
+            <button type="button" class="icon-btn panel-menu-btn" data-testid="panel-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="Tùy chọn ván cờ" title="Tùy chọn">⋯</button>
+            <div class="panel-overflow-menu" data-testid="panel-overflow-menu" role="menu" hidden></div>
           </div>
-          <div class="strip-status-line" data-testid="strip-status-black" aria-live="polite"></div>
-          <div class="player-clock" data-nowrap="1">10:00</div>
         </div>
-        <div class="captured-tray" data-tray="black" aria-label="Quân Đỏ bị Đen ăn"></div>
-      </section>
+        <div class="variant-header-pill" hidden></div>
+
+        <section class="player-card player-card-black" data-side="black">
+          <div class="player-header">
+            <div class="player-avatar avatar-black">將</div>
+            <div class="player-meta">
+              <div class="player-name" data-nowrap="1">Đen</div>
+              <div class="player-sub">Quân Đen</div>
+            </div>
+            <div class="strip-status-line" data-testid="strip-status-black" aria-live="polite"></div>
+            <div class="player-clock" data-nowrap="1">10:00</div>
+          </div>
+          <div class="captured-tray" data-tray="black" aria-label="Quân Đỏ bị Đen ăn"></div>
+        </section>
+
+        <section class="player-card player-card-red" data-side="red">
+          <div class="player-header">
+            <div class="player-avatar avatar-red">帥</div>
+            <div class="player-meta">
+              <div class="player-name" data-nowrap="1">Đỏ</div>
+              <div class="player-sub">Quân Đỏ</div>
+            </div>
+            <div class="strip-status-line" data-testid="strip-status-red" aria-live="polite"></div>
+            <div class="player-clock" data-nowrap="1">10:00</div>
+          </div>
+          <div class="captured-tray" data-tray="red" aria-label="Quân Đen bị Đỏ ăn"></div>
+        </section>
+
+        <div class="compact-status-line" data-testid="compact-status-line" aria-live="polite">Lượt của Đỏ</div>
+        <div class="panel-action-row" data-testid="panel-action-row"></div>
+      </div>
 
       <div class="sheet-host" data-testid="bottom-sheet" data-state="closed" role="dialog" aria-modal="false" aria-label="Nước đi và tùy chọn">
         <div class="sheet-handle" data-testid="sheet-handle" tabindex="0" role="button" aria-label="Kéo để mở hoặc đóng bảng">
@@ -591,21 +878,13 @@ export class SidePanel {
           </div>
         </div>
       </div>
-
-      <section class="player-card player-card-red" data-side="red">
-        <div class="player-header">
-          <div class="player-avatar avatar-red">帥</div>
-          <div class="player-meta">
-            <div class="player-name" data-nowrap="1">Đỏ</div>
-            <div class="player-sub">Quân Đỏ</div>
-          </div>
-          <div class="strip-status-line" data-testid="strip-status-red" aria-live="polite"></div>
-          <div class="player-clock" data-nowrap="1">10:00</div>
-        </div>
-        <div class="captured-tray" data-tray="red" aria-label="Quân Đen bị Đỏ ăn"></div>
-      </section>
     `;
 
+    this.panelAnalyzeBtn = this.container.querySelector('[data-testid="panel-analyze-btn"]');
+    this.panelMenuBtn = this.container.querySelector('[data-testid="panel-menu-btn"]');
+    this.overflowMenu = this.container.querySelector('[data-testid="panel-overflow-menu"]');
+    this.compactStatusLine = this.container.querySelector('[data-testid="compact-status-line"]');
+    this.panelActionRow = this.container.querySelector('[data-testid="panel-action-row"]');
     this.variantHeaderEl = this.container.querySelector('.variant-header-pill');
     this.poolPanelEl = this.container.querySelector('.jieqi-pool-panel');
     this.analysisTabBtn = this.container.querySelector('[data-stab="analysis"]');
@@ -821,6 +1100,86 @@ export class SidePanel {
         if (this.callbacks.onStepPly) this.callbacks.onStepPly(1);
       }
     });
+
+    // Compact header & overflow menu ("⋯") + mode action row bindings
+    if (this.panelAnalyzeBtn) {
+      this.panelAnalyzeBtn.addEventListener('click', () => {
+        if (this.callbacks.onOpenAnalysis) this.callbacks.onOpenAnalysis();
+      });
+    }
+    if (this.panelMenuBtn && this.overflowMenu) {
+      const toggleMenu = (forceOpen = null) => {
+        const open = forceOpen !== null ? forceOpen : this.overflowMenu.hidden;
+        this.overflowMenu.hidden = !open;
+        this.panelMenuBtn.setAttribute('aria-expanded', String(open));
+        if (open) {
+          const first = this.overflowMenu.querySelector('button:not(:disabled)');
+          if (first) first.focus();
+        }
+      };
+      this.panelMenuBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        toggleMenu();
+      });
+      this.panelMenuBtn.addEventListener('keydown', (ev) => {
+        if (ev.key === 'ArrowDown' || ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          toggleMenu(true);
+        }
+      });
+      this.overflowMenu.addEventListener('keydown', (ev) => {
+        const btns = [...this.overflowMenu.querySelectorAll('button:not(:disabled)')];
+        const idx = btns.indexOf(document.activeElement);
+        if (ev.key === 'Escape') {
+          ev.preventDefault();
+          ev.stopPropagation();
+          this.closeOverflowMenu();
+          this.panelMenuBtn.focus();
+        } else if (ev.key === 'ArrowDown' && btns.length > 0) {
+          ev.preventDefault();
+          btns[(idx + 1) % btns.length].focus();
+        } else if (ev.key === 'ArrowUp' && btns.length > 0) {
+          ev.preventDefault();
+          btns[(idx - 1 + btns.length) % btns.length].focus();
+        }
+      });
+      this.overflowMenu.addEventListener('click', (ev) => {
+        const item = ev.target.closest('button[data-mitem]');
+        if (!item || item.disabled) return;
+        const act = item.dataset.mitem;
+        this.closeOverflowMenu();
+        if (act === 'hint' && this.callbacks.onHint) this.callbacks.onHint();
+        else if (act === 'ai_config') this._openAiConfigModal();
+        else if (act === 'new_game') this.requestNewGame();
+        else if (act === 'flip' && this.callbacks.onFlip) this.callbacks.onFlip();
+        else if (act === 'theme' && this.callbacks.onToggleTheme) this.callbacks.onToggleTheme();
+        else if (act === 'mute' && this.callbacks.onToggleMute) this.callbacks.onToggleMute();
+        else if (act === 'voice' && this.callbacks.onToggleVoice) this.callbacks.onToggleVoice();
+        else if (act === 'export' && this.callbacks.onExportGame) this.callbacks.onExportGame();
+        else if (act === 'settings' && this.callbacks.onOpenSettings) this.callbacks.onOpenSettings();
+      });
+      document.addEventListener('click', (ev) => {
+        if (!this.overflowMenu || this.overflowMenu.hidden) return;
+        if (!this.overflowMenu.contains(ev.target) && ev.target !== this.panelMenuBtn) {
+          this.closeOverflowMenu();
+        }
+      });
+    }
+    if (this.panelActionRow) {
+      this.panelActionRow.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button[data-pact]');
+        if (!btn || btn.disabled) return;
+        const act = btn.dataset.pact;
+        if (act === 'undo' && this.callbacks.onUndo) this.callbacks.onUndo();
+        else if (act === 'local-draw') this.requestLocalDraw();
+        else if (act === 'local-resign') this.requestLocalResign();
+        else if (act === 'resign') this.requestResign();
+        else if (act === 'online-draw' && this.callbacks.onOnlineDraw) this.callbacks.onOnlineDraw();
+        else if (act === 'online-resign') this.requestResign();
+        else if (act === 'return-live' && this.callbacks.onReturnLive) this.callbacks.onReturnLive();
+        else if (act === 'continue-here' && this.callbacks.onContinueHere) this.callbacks.onContinueHere();
+      });
+    }
 
     // Core action buttons
     this.container.querySelector('[data-action="new"]').addEventListener('click', () => {

@@ -192,3 +192,9 @@
 - Features: FIFO matchmaking (120 s timeout), 6-char private rooms + `#/join/<CODE>` invite links, server-authoritative Xiangqi & Cờ Úp (server-only `_secret`, zero wire leak), monotonic `hrtime.bigint()` clocks + timeout, 90 s/180 s reconnect grace & reload resync, draw offers, resign, rematch with swapped colors, strict static whitelist, origin checks, rate limits, and XSS-safe `textContent` nicknames.
 - Added `Dockerfile`, `.dockerignore`, `docs/DEPLOY.md`, `docs/PROTOCOL.md`, updated `README.md` and `docs/DECISIONS.md`, and curated 6 optimized screenshots in `docs/screenshots/` (163–305 KB each).
 - Added `tests/online/server.test.js` (7/7 passed) and `tools/verify_online.py` (2 Playwright contexts: quick-match, reload resync, room link Cờ Úp, XSS check — passed with `err=0, warn=0`).
+
+
+## QA + Fix + Push Pass (`feat/lobby-jieqi-online`)
+- Added `tests/online/gaps.test.js` (7/7), `tools/verify_security.py`, `tools/verify_explore.py` (seeded monkey test + full UI/route/settings/online checks), and `tools/jieqi_strength.js`.
+- Fixed 4 bugs (1 commit each): `fad3c3f` (CSP `frame-ancestors 'none'` + `X-Frame-Options: DENY`), `514331b` (`.ttf` `font/ttf` MIME type), `891af9e` (read top-level `settings.nickname` in online sessions), `70af926` (prevent side-panel / move-list clipping at 780 px viewport in Cờ Úp).
+- Wrote full QA report in `docs/TEST_REPORT.md` including Cờ Úp AI strength table (5-1-0, 5-0-1, 4-2-0), security headers, visual review, and privacy scan (0 hits).

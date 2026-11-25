@@ -253,3 +253,18 @@ test('6. Item 1: selectAnalysisPositionData arrows always originate from occupie
     assert.ok(pc && pc.side === 'red' && pc.kind === 'chariot');
   }
 });
+
+test('7. Item 2: collinear overlapping arrows (h0h6 vs h0h7) get perpendicular offset and dashed played arrow', () => {
+  const positions = [
+    { ply: 0, bestmove: 'h0h6', scoreRed: { cp: 25 }, lines: [{ move: 'h0h6', scoreRed: { cp: 25 }, pv: ['h0h6'] }] },
+    { ply: 1, bestmove: 'h9h7', scoreRed: { cp: -480 }, lines: [{ move: 'h9h7', scoreRed: { cp: -480 }, pv: ['h9h7'] }] },
+  ];
+  const report = buildAnalysisReport(positions, ['h0h7']);
+  const focus = selectAnalysisPositionData({ positions, moveAnnotations: report.moveAnnotations }, 0, 1);
+  assert.equal(focus.arrows.length, 2);
+  assert.notEqual(focus.arrows[0].offset, focus.arrows[1].offset);
+  assert.equal(Math.abs(focus.arrows[0].offset), 10);
+  assert.equal(Math.abs(focus.arrows[1].offset), 10);
+  assert.equal(focus.arrows[0].dashed, false);
+  assert.equal(focus.arrows[1].dashed, true);
+});

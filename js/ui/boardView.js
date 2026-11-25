@@ -1619,7 +1619,7 @@ export class BoardView {
     }
 
     // 5. Soft blue hint arrow & analysis arrows (when active)
-    const drawArrow = (from, to, color, opacity, cls) => {
+    const drawArrow = (from, to, color, opacity, cls, opts = {}) => {
       const fp = this.logicalToBoard(from);
       const tp = this.logicalToBoard(to);
       const dx = tp.x - fp.x;
@@ -1628,14 +1628,17 @@ export class BoardView {
       if (len <= 1) return;
       const ux = dx / len;
       const uy = dy / len;
-      const startX = fp.x + ux * 22;
-      const startY = fp.y + uy * 22;
-      const endX = tp.x - ux * 28;
-      const endY = tp.y - uy * 28;
-      const tipX = tp.x - ux * 10;
-      const tipY = tp.y - uy * 10;
       const px = -uy;
       const py = ux;
+      const off = Number(opts.offset) || 0;
+      const ox = px * off;
+      const oy = py * off;
+      const startX = fp.x + ux * 22 + ox;
+      const startY = fp.y + uy * 22 + oy;
+      const endX = tp.x - ux * 28 + ox;
+      const endY = tp.y - uy * 28 + oy;
+      const tipX = tp.x - ux * 10 + ox;
+      const tipY = tp.y - uy * 10 + oy;
       const headBaseX = tipX - ux * 24;
       const headBaseY = tipY - uy * 24;
       const p1x = headBaseX + px * 15;
@@ -1643,18 +1646,24 @@ export class BoardView {
       const p2x = headBaseX - px * 15;
       const p2y = headBaseY - py * 15;
 
-      const g = svgEl('g', { class: cls, opacity });
-      g.appendChild(
-        svgEl('line', {
-          x1: startX.toFixed(1),
-          y1: startY.toFixed(1),
-          x2: endX.toFixed(1),
-          y2: endY.toFixed(1),
-          stroke: color,
-          'stroke-width': 11,
-          'stroke-linecap': 'round',
-        })
-      );
+      const gAttrs = { class: cls, opacity };
+      if (opts.kind) gAttrs['data-kind'] = opts.kind;
+      if (off) gAttrs['data-offset'] = String(off);
+      if (opts.dashed) gAttrs['data-dashed'] = '1';
+      const g = svgEl('g', gAttrs);
+      const lineAttrs = {
+        x1: startX.toFixed(1),
+        y1: startY.toFixed(1),
+        x2: endX.toFixed(1),
+        y2: endY.toFixed(1),
+        stroke: color,
+        'stroke-width': 11,
+        'stroke-linecap': 'round',
+      };
+      if (opts.dashed) {
+        lineAttrs['stroke-dasharray'] = '14 10';
+      }
+      g.appendChild(svgEl('line', lineAttrs));
       g.appendChild(
         svgEl('polygon', {
           points: `${tipX.toFixed(1)},${tipY.toFixed(1)} ${p1x.toFixed(1)},${p1y.toFixed(1)} ${p2x.toFixed(1)},${p2y.toFixed(1)}`,
@@ -1666,7 +1675,11 @@ export class BoardView {
 
     if (this.analysisArrows && this.analysisArrows.length > 0) {
       for (const a of this.analysisArrows) {
-        drawArrow(a.from, a.to, a.color || '#38BDF8', a.opacity ?? 0.85, 'analysis-arrow');
+        drawArrow(a.from, a.to, a.color || '#38BDF8', a.opacity ?? 0.85, 'analysis-arrow', {
+          kind: a.kind,
+          offset: a.offset,
+          dashed: a.dashed,
+        });
       }
     }
     if (this.hintArrow) {

@@ -310,6 +310,41 @@ export function isMistakeClass(cls) {
  * - Otherwise (normal stepping at `viewPly`), arrows show:
  *     blue = engine best move at `viewPly`, grey = 2nd best move at `viewPly`.
  */
+/**
+ * Detect collinear overlapping arrows (same file, same rank, or collinear path)
+ * and offset them perpendicular by ±10 board SVG units (~6 CSS px), plus mark
+ * played-mistake arrows dashed so both stay clearly visible.
+ */
+export function applyArrowOverlapOffsets(arrows) {
+  if (!Array.isArray(arrows) || arrows.length === 0) return [];
+  const out = arrows.map((a) => ({
+    ...a,
+    offset: 0,
+    dashed: a.kind === 'played',
+  }));
+  if (out.length < 2) return out;
+
+  const isCollinearOverlap = (a, b) => {
+    const ax1 = a.from.x, ay1 = a.from.y, ax2 = a.to.x, ay2 = a.to.y;
+    const bx1 = b.from.x, by1 = b.from.y, bx2 = b.to.x, by2 = b.to.y;
+    const dx = ax2 - ax1;
+    const dy = ay2 - ay1;
+    const cross1 = dx * (by1 - ay1) - dy * (bx1 - ax1);
+    const cross2 = dx * (by2 - ay1) - dy * (bx2 - ax1);
+    if (cross1 !== 0 || cross2 !== 0) return false;
+    // Check 1D bounding-box overlap on X and Y
+    const overlapX = Math.max(Math.min(ax1, ax2), Math.min(bx1, bx2)) <= Math.min(Math.max(ax1, ax2), Math.max(bx1, bx2));
+    const overlapY = Math.max(Math.min(ay1, ay2), Math.min(by1, by2)) <= Math.min(Math.max(ay1, ay2), Math.max(by1, by2));
+    return overlapX && overlapY;
+  };
+
+  if (isCollinearOverlap(out[0], out[1])) {
+    out[0].offset = -10;
+    out[1].offset = 10;
+  }
+  return out;
+}
+
 export function selectAnalysisPositionData(result, viewPly, focusedMistakePly = null) {
   if (!result || !Array.isArray(result.positions)) return null;
   const pos = result.positions.find((p) => p.ply === viewPly) || null;
@@ -395,6 +430,6 @@ export function selectAnalysisPositionData(result, viewPly, focusedMistakePly = 
           scoreRed: posAfterNext ? posAfterNext.scoreRed : null,
         }
       : null,
-    arrows: rawArrows,
+    arrows: applyArrowOverlapOffsets(rawArrows),
   };
 }

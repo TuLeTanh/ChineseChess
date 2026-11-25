@@ -442,26 +442,31 @@ export class AnalysisPanel {
       this.bestCard.hidden = true;
       return;
     }
-    const pos = this.result.positions.find((p) => p.ply === ply);
-    const ann = ply > 0 ? this.result.moveAnnotations.find((a) => a.ply === ply) : null;
-    if (!pos) {
+    const data = selectAnalysisPositionData(this.result, ply, this.focusedMistakePly);
+    if (!data) {
       this.bestCard.hidden = true;
       return;
     }
     this.bestCard.hidden = false;
 
-    const annHtml = ann
-      ? `<div class="an-move-verdict" style="border-left:3px solid ${ann.color}">
-          <strong>Nước ${ann.ply}: ${ann.move} ${ann.symbol}</strong>
-          <span>${ann.label}</span>
-          ${ann.bestMove && ann.bestMove !== ann.move ? `<span class="an-better">Tốt nhất: <code>${ann.bestMove}</code></span>` : ''}
-        </div>`
-      : `<div class="an-move-verdict"><strong>Thế ban đầu</strong><span>Đánh giá: ${formatEvalScore(pos.scoreRed)}</span></div>`;
+    let headHtml = '';
+    if (data.isMistakeFocus && data.focusedAnn) {
+      const fa = data.focusedAnn;
+      headHtml = `<div class="an-move-verdict" style="border-left:3px solid ${fa.color}">
+        <strong>Máy chọn: <code>${data.bestMove || '—'}</code></strong>
+        <span class="an-better">Thay cho nước ${fa.ply} (${fa.label})</span>
+      </div>`;
+    } else {
+      const ctxLabel = ply === 0 ? 'Thế ban đầu' : `Sau nước ${ply}`;
+      headHtml = `<div class="an-move-verdict">
+        <strong>Máy chọn (${ctxLabel}): <code>${data.bestMove || '—'}</code></strong>
+        <span>${formatEvalScore(data.pos.scoreRed)}</span>
+      </div>`;
+    }
 
-    const lines = (pos.lines || []).slice(0, 3);
-    const linesHtml = lines
+    const linesHtml = data.lines
       .map(
-        (ln, idx) => `
+        (ln) => `
         <div class="an-line-row">
           <span class="an-line-score">${formatEvalScore(ln.scoreRed)}</span>
           <span class="an-line-pv">${(ln.pv || [ln.move]).slice(0, 5).join(' ')}</span>
@@ -470,10 +475,17 @@ export class AnalysisPanel {
       )
       .join('');
 
-    this.bestCard.innerHTML = `${annHtml}<div class="an-lines">${linesHtml || '<span class="set-hint">Không còn nước đi.</span>'}</div>`;
+    const playedHtml = data.playedNext
+      ? `<div class="an-played-row" data-testid="an-played-row" style="border-left:3px solid ${data.playedNext.color}">
+          <span>Nước đã đi: <strong>${data.playedNext.move}</strong> (${formatEvalScore(data.playedNext.scoreRed)})</span>
+          <span style="color:${data.playedNext.color};font-weight:700">${data.playedNext.symbol} ${data.playedNext.label}</span>
+        </div>`
+      : '';
+
+    this.bestCard.innerHTML = `${headHtml}<div class="an-lines">${linesHtml || '<span class="set-hint">Không còn nước đi.</span>'}</div>${playedHtml}`;
     if (this.onTryMove) {
       this.bestCard.querySelectorAll('[data-try-move]').forEach((btn) => {
-        btn.addEventListener('click', () => this.onTryMove(ply, btn.dataset.tryMove));
+        btn.addEventListener('click', () => this.onTryMove(data.boardPly, btn.dataset.tryMove));
       });
     }
   }

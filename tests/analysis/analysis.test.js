@@ -268,3 +268,31 @@ test('7. Item 2: collinear overlapping arrows (h0h6 vs h0h7) get perpendicular o
   assert.equal(focus.arrows[0].dashed, false);
   assert.equal(focus.arrows[1].dashed, true);
 });
+
+test('8. Item 3: best-move card lines match the arrow position and include playedNext with after-score', () => {
+  const positions = [
+    {
+      ply: 0,
+      bestmove: 'h0h6',
+      scoreRed: { cp: 25 },
+      lines: [
+        { move: 'h0h6', scoreRed: { cp: 25 }, pv: ['h0h6', 'c6c5'] },
+        { move: 'a0a1', scoreRed: { cp: 10 }, pv: ['a0a1', 'a9a8'] },
+      ],
+    },
+    {
+      ply: 1,
+      bestmove: 'h9h7',
+      scoreRed: { cp: -480 },
+      lines: [{ move: 'h9h7', scoreRed: { cp: -480 }, pv: ['h9h7', 'a0a1'] }],
+    },
+  ];
+  const report = buildAnalysisReport(positions, ['h0h7']);
+  const data = selectAnalysisPositionData({ positions, moveAnnotations: report.moveAnnotations }, 0, 1);
+  assert.equal(data.boardPly, 0);
+  assert.equal(data.bestMove, 'h0h6');
+  assert.equal(data.lines[0].move, data.bestMove);
+  assert.equal(data.lines[0].pv[0], 'h0h6');
+  assert.equal(data.playedNext.move, 'h0h7');
+  assert.equal(formatEvalScore(data.playedNext.scoreRed), '-4.8');
+});

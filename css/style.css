@@ -4516,3 +4516,15 @@ body.mode-effects .board-stage {
     white-space: nowrap;
   }
 }
+
+.an-played-row {
+  margin-top: 4px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}

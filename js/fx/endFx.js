@@ -311,7 +311,7 @@ export function playEndFx(opts) {
     const rect = container.getBoundingClientRect();
     cssW = Math.max(1, Math.round(rect.width));
     cssH = Math.max(1, Math.round(rect.height));
-    const dpr = Math.min(coarse ? 1.5 : 2, window.devicePixelRatio || 1);
+    const dpr = Math.min(coarse ? 1 : 2, window.devicePixelRatio || 1);
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -407,7 +407,7 @@ export function playEndFx(opts) {
         const cp = clamp01((t - 40) / 250);
         crackG.setAttribute('opacity', '1');
         crackPath.setAttribute('stroke-dashoffset', (220 * (1 - cp)).toFixed(1));
-        if (generalEl && t > 250) {
+        if (generalEl && t > 250 && !coarse) {
           const tp = clamp01((t - 250) / 260);
           generalEl.style.filter = `saturate(${lerp(1, 0.2, tp).toFixed(2)})`;
           generalEl.setAttribute(

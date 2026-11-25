@@ -15,6 +15,7 @@ Game Cờ Tướng chạy ngay trên trình duyệt: bàn cờ và quân cờ v�
 - [Chạy nhanh](#chạy-nhanh)
 - [Chơi với Pikafish (tùy chọn)](#chơi-với-pikafish-tùy-chọn)
 - [Giọng hô tiếng Trung (tùy chọn)](#giọng-hô-tiếng-trung-tùy-chọn)
+- [Chơi trên điện thoại và máy tính bảng](#chơi-trên-điện-thoại-và-máy-tính-bảng)
 - [Cách chơi](#cách-chơi)
 - [Cấu trúc dự án](#cấu-trúc-dự-án)
 - [Kiến trúc](#kiến-trúc)
@@ -143,6 +144,38 @@ python tools/gen_voice.py            # cần mạng một lần, tạo assets/vo
 
 Chưa tạo giọng thì game dùng giọng đọc có sẵn của trình duyệt (`speechSynthesis`) nếu có giọng tiếng Trung, nếu không thì chỉ phát âm thanh nhạc cụ và gỗ. Muốn đổi giọng, độ trầm, tốc độ: `python tools/gen_voice.py --help`. Muốn dùng giọng tự thu: xem [`assets/voice/README.md`](assets/voice/README.md).
 Nghe thử các giọng tại `/?voices`, nghe toàn bộ âm thanh tại `/?sounds`.
+
+## Chơi trên điện thoại và máy tính bảng
+
+Giao diện ván cờ hỗ trợ đầy đủ màn hình điện thoại (từ `320×568` trở lên) và máy tính bảng cả dọc lẫn ngang mà không thay đổi giao diện máy tính (`≥ 960×600`):
+
+- **Bố cục tự động (`desktop` / `stack` / `side`)**:
+  - **Dọc (`stack`)**: thanh trên gọn (`← Sảnh`, chế độ chơi, nút Lưu/Xuất `💾`, Cài đặt `⚙`), dải đối thủ, bàn cờ chiếm toàn chiều rộng (tự cắt khung gọn khi chiều rộng `< 480 px`), dải nước đi cuộn ngang + nút `⌃`, dải người chơi (kèm trạng thái lượt/chiếu), và thanh điều khiển dưới cùng vừa tầm ngón cái.
+  - **Ngang (`side`)**: bàn cờ bên trái lớn nhất theo chiều cao, bảng thông tin + danh sách nước đi bên phải.
+  - **Bảng trượt (Bottom Sheet)** ở bố cục dọc: kéo tay cầm lên/xuống hoặc bấm `⌃` để xem đầy đủ 3 mục **Nước đi** (kèm thanh thời gian kéo được bằng tay), **Quân úp** (Cờ Úp), và **Tùy chọn**.
+- **Điều khiển cảm ứng**: hỗ trợ cả **chạm-chạm** và **kéo thả** (nhấc quân lên trên ngón tay để không bị che tầm nhìn, vòng vàng hút vào ô đích hợp lệ gần nhất, chặn đa chạm / phóng to nhầm / menu ngữ cảnh khi nhấn giữ, nảy về khi thả sai).
+- **Ba tùy chọn mới trong Cài đặt → Trò chơi**:
+  - *Rung khi chạm (nếu thiết bị hỗ trợ)*
+  - *Nhấc quân lên trên ngón tay khi kéo*
+  - *Giữ màn hình sáng khi đang chơi* (Screen Wake Lock, chỉ chạy khi trình duyệt hỗ trợ trong ngữ cảnh bảo mật)
+
+| | | | |
+|---|---|---|---|
+| ![Điện thoại dọc](docs/screenshots/mobile_stack.png) | ![Bảng trượt](docs/screenshots/mobile_sheet.png) | ![Điện thoại ngang](docs/screenshots/mobile_landscape.png) | ![Máy tính bảng Ngọc Bích](docs/screenshots/mobile_tablet.png) |
+
+**Thử chơi trên điện thoại thật qua mạng LAN (cùng Wi-Fi):**
+
+```powershell
+cd server
+npm install    # chỉ cần chạy một lần
+cd ..
+node server/index.js --lan
+```
+
+1. Xem địa chỉ IP nội bộ của máy tính (Windows: `ipconfig`, mục **IPv4 Address**, ví dụ `192.168.1.25`).
+2. Trên điện thoại cùng Wi-Fi, mở trình duyệt (Safari / Chrome) tới `http://<IP máy tính>:8787` (ví dụ `http://192.168.1.25:8787`).
+3. **Lưu ý tường lửa**: nếu điện thoại không tải được trang, cho phép cổng TCP `8787` (hoặc `node.exe`) qua Windows Firewall trên mạng Private.
+4. **Lưu ý Pikafish**: engine Pikafish chỉ chạy qua `tools/server.py` trên máy tính (`127.0.0.1`); khi mở qua `node server/index.js --lan` trên điện thoại, game tự dùng engine **Nội bộ (JS)** chạy trực tiếp trên thiết bị và vẫn chơi đầy đủ Cờ Tướng, Cờ Úp, Đấu Online và Thư viện ván.
 
 ## Cách chơi
 
@@ -273,12 +306,11 @@ Yêu cầu cho các script kiểm thử trình duyệt (`tools/verify*.py`): cà
 ## Giới hạn đã biết
 
 - Chưa có luật xử lý **chiếu liên tục** (trường chiếu, trường tróc) hay đuổi quân liên tục. Hiện lặp thế 3 lần được xử hòa; Pikafish có luật lặp riêng nên có thể khác kết quả của game trong vài thế đặc biệt.
-- Chưa tối ưu cho màn hình điện thoại nhỏ ở màn chơi cờ (bố cục `min-width: 960px`; sảnh chờ và thư viện ván đã tối ưu xuống 360 px); xem chi tiết trong [`docs/AUDIT.md`](docs/AUDIT.md).
+- **Chưa là PWA** (chưa có `manifest.json` / Service Worker để cài đặt biểu tượng màn hình chính hay chạy ngoại tuyến hoàn toàn không cần máy chủ cục bộ).
 - Âm thanh tổng hợp không thể giống hoàn toàn tiếng gỗ thật; có thể thay bằng file thu thật.
 - Trên bản clone mới chưa chạy `tools/gen_voice.py`, trình duyệt có thể ghi 1 dòng `404` trong Console khi kiểm tra `assets/voice/manifest.json` (game vẫn hoạt động bình thường).
-- Chế độ kéo thả quân trên màn hình cảm ứng chưa đặt `touch-action: none` nên có thể xung đột với thao tác cuộn trang (chạm-chạm vẫn đi quân bình thường).
 - Đổi cấp độ máy ngay khi máy đang nghĩ sẽ áp dụng từ nước tiếp theo (không hủy nước đang tính).
-- Giao diện đang chọn (`Gỗ Lim` / `Ngọc Bích`) chưa lưu vào `localStorage` sau khi tải lại trang.
+- Khi mở qua HTTP mạng LAN (`http://<IP>:8787`, không phải HTTPS), trình duyệt tắt `navigator.clipboard` và Screen Wake Lock — game tự chuyển sang hộp văn bản chọn-để-chép và bỏ qua Wake Lock một cách im lặng.
 
 ## Hướng phát triển
 

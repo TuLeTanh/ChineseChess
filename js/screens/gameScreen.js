@@ -19,12 +19,18 @@ import { openExportModal, saveRecordWithPrunePrompt } from '../ui/saveModals.js'
 import { buildRecordFromBoard } from '../storage/gameRecord.js';
 import { OnlineGameBridge } from '../online/onlineGameController.js';
 import { leakTracker } from '../app/router.js';
+import { LayoutManager } from '../ui/layoutManager.js';
+import { MoveStrip } from '../ui/moveStrip.js';
+import { AI_LEVELS } from '../ai/levels.js';
 
 export function createGameScreen(ctx) {
   let controller = null;
   let boardView = null;
   let sidePanel = null;
   let onlineBridge = null;
+  let layoutManager = null;
+  let moveStrip = null;
+  let bottomSheet = null;
   let onKeyDown = null;
   let onBeforeUnload = null;
   let onVisChange = null;
@@ -129,21 +135,50 @@ export function createGameScreen(ctx) {
       const reqEngine = q.engine || urlParams.get('engine') || settings.last.engine || (pfInfo.available ? 'pikafish' : 'js');
       const engineType = variant.supportsPikafish && pfInfo.available && reqEngine === 'pikafish' ? 'pikafish' : 'js';
 
-      // Build game shell inside container with top-left "← Sảnh" & gear buttons
+      // Build game shell inside container with top bar, board host, move strip host, and mobile controls
+      const levelName = (AI_LEVELS.find((l) => l.id === aiLevel) || AI_LEVELS[1]).name;
+      const topChipText =
+        `${variant.id === 'coup' ? 'Cờ Úp' : 'Cờ Tướng'} · ` +
+        (mode === 'ai' ? `Đấu máy · ${levelName}` : mode === 'online' ? 'Trực tuyến' : 'Hai người');
+
       container.className = 'app-shell game-shell';
       container.innerHTML = `
         <main id="board-stage" class="board-stage">
           <div class="game-top-nav">
             <button type="button" class="game-nav-btn" data-nav="lobby" title="Về sảnh">← Sảnh</button>
-            <button type="button" class="game-nav-btn" data-nav="settings" aria-label="Cài đặt" title="Cài đặt">⚙</button>
+            <div class="game-top-chip" data-testid="top-mode-chip" data-nowrap="1">${topChipText}</div>
+            <div class="game-top-right">
+              <button type="button" class="game-nav-btn game-top-save" data-testid="top-save-btn" aria-label="Lưu hoặc xuất ván cờ" title="Lưu / Xuất">💾</button>
+              <button type="button" class="game-nav-btn" data-nav="settings" aria-label="Cài đặt" title="Cài đặt">⚙</button>
+            </div>
           </div>
           <div class="game-board-host"></div>
+          <div class="move-strip-host"></div>
+          <nav class="mobile-controls-bar" data-testid="mobile-controls" aria-label="Điều khiển nhanh"></nav>
         </main>
         <aside id="side-panel" class="side-panel" aria-label="Bảng thông tin ván cờ"></aside>
       `;
       const stage = container.querySelector('.game-board-host');
+      const moveStripHost = container.querySelector('.move-strip-host');
+      const mobileControlsEl = container.querySelector('.mobile-controls-bar');
+      const topChipEl = container.querySelector('[data-testid="top-mode-chip"]');
       const sidePanelEl = container.querySelector('#side-panel');
       const modalRoot = ctx.modalRoot;
+
+      const openSaveExport = () => {
+        if (!controller) return;
+        const viewedFen = controller.board.snapshotAt(controller.viewPly).fen;
+        openExportModal(ctx, {
+          record: buildCurrentRecord(
+            controller.isGameOver() ? (controller.resigned ? (controller.playerSide === RED ? 'black' : 'red') : 'draw') : 'unfinished',
+            controller.resigned ? 'resign' : null,
+            'manual'
+          ),
+          currentFen: viewedFen,
+          allowSaveToLibrary: mode !== 'online',
+        });
+      };
+      container.querySelector('[data-testid="top-save-btn"]').addEventListener('click', openSaveExport);
 
       container.querySelector('[data-nav="lobby"]').addEventListener('click', () => {
         if (controller && controller.isGameInProgress()) {
@@ -376,6 +411,118 @@ export function createGameScreen(ctx) {
         onVolumeChange: (vol) => {
           ctx.setVolume(vol);
         },
+        onPanelUpdated: (info) => {
+          if (moveStrip) moveStrip.update(info.viewPly);
+          renderMobileControls(info);
+          if (topChipEl && controller) {
+            const lvl = (AI_LEVELS.find((l) => l.id === controller.aiLevel) || AI_LEVELS[1]).name;
+            topChipEl.textContent =
+              `${variant.id === 'coup' ? 'Cờ Úp' : 'Cờ Tướng'} · ` +
+              (controller.mode === 'ai' ? `Đấu máy · ${lvl}` : controller.mode === 'online' ? 'Trực tuyến' : 'Hai người');
+          }
+        },
+      });
+
+      const renderMobileControls = (info = {}) => {
+        if (!mobileControlsEl || !controller) return;
+        const isRev = Boolean(info.isReview);
+        const curMode = controller.mode;
+        const undoDisallowed = controller.board.isJieqi && (curMode === 'ai' || curMode === 'online');
+        const canUndo = info.canUndo ?? (!undoDisallowed && controller.board.history.length > 0);
+        const canHint =
+          curMode === 'ai' &&
+          !isRev &&
+          !controller.isGameOver() &&
+          !sidePanel.aiThinking &&
+          controller.hintsLeft > 0 &&
+          controller.board.sideToMove === controller.playerSide;
+        const gameOver = controller.isGameOver();
+
+        let buttons = [];
+        if (isRev) {
+          buttons = [
+            { act: 'rev-start', icon: '⏮', label: 'Đầu', disabled: controller.viewPly <= 0 },
+            { act: 'rev-prev', icon: '◀', label: 'Trước', disabled: controller.viewPly <= 0 },
+            { act: 'rev-play', icon: sidePanel.autoPlaying ? '⏸' : '⏯', label: 'Phát', disabled: false },
+            { act: 'rev-next', icon: '▶', label: 'Sau', disabled: controller.viewPly >= controller.board.history.length },
+            { act: 'rev-live', icon: '⏭', label: 'Cuối', disabled: controller.viewPly >= controller.board.history.length },
+          ];
+        } else if (curMode === 'ai') {
+          if (!undoDisallowed) {
+            buttons.push({ act: 'undo', icon: '↩', label: 'Đi lại', disabled: !canUndo });
+          }
+          buttons.push(
+            { act: 'hint', icon: '💡', label: `Gợi ý (${controller.hintsLeft})`, disabled: !canHint },
+            { act: 'resign', icon: '🏳', label: 'Đầu hàng', disabled: gameOver },
+            { act: 'sheet', icon: '⌃', label: 'Nước đi', disabled: false }
+          );
+        } else if (curMode === 'online') {
+          buttons = [
+            { act: 'online-draw', icon: '🤝', label: 'Xin hòa', disabled: gameOver },
+            { act: 'resign', icon: '🏳', label: 'Đầu hàng', disabled: gameOver },
+            { act: 'sheet', icon: '⌃', label: 'Nước đi', disabled: false },
+          ];
+        } else {
+          buttons = [
+            { act: 'undo', icon: '↩', label: 'Đi lại', disabled: !canUndo },
+            { act: 'flip', icon: '⇅', label: 'Xoay bàn', disabled: false },
+            { act: 'new', icon: '＋', label: 'Ván mới', disabled: false },
+            { act: 'sheet', icon: '⌃', label: 'Nước đi', disabled: false },
+          ];
+        }
+
+        mobileControlsEl.innerHTML = buttons
+          .map(
+            (b) =>
+              `<button type="button" class="mctrl-btn" data-action="${b.act}" ${b.disabled ? 'disabled' : ''}>` +
+              `<span class="mctrl-icon" aria-hidden="true">${b.icon}</span>` +
+              `<span class="mctrl-label" data-nowrap="1">${b.label}</span>` +
+              `</button>`
+          )
+          .join('');
+      };
+
+      mobileControlsEl.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('button[data-action]');
+        if (!btn || btn.disabled) return;
+        const act = btn.dataset.action;
+        if (act === 'undo') controller.handleUndo();
+        else if (act === 'flip') boardView.flip();
+        else if (act === 'new') sidePanel.requestNewGame();
+        else if (act === 'hint') controller.handleHint();
+        else if (act === 'resign') sidePanel.requestResign();
+        else if (act === 'online-draw') {
+          if (onlineBridge && onlineBridge.drawBtn) onlineBridge.drawBtn.click();
+        } else if (act === 'sheet') {
+          if (bottomSheet) bottomSheet.toggle();
+        } else if (act === 'rev-start') controller.goToPly(0);
+        else if (act === 'rev-prev') controller.goToPly(controller.viewPly - 1);
+        else if (act === 'rev-play') controller.toggleAutoPlay();
+        else if (act === 'rev-next') controller.goToPly(controller.viewPly + 1);
+        else if (act === 'rev-live') controller.goToPly(controller.board.history.length);
+      });
+
+      moveStrip = new MoveStrip({
+        container: moveStripHost,
+        board: controller.board,
+        onSelectPly: (ply) => controller.goToPly(ply),
+        onOpenSheet: () => {
+          if (bottomSheet) bottomSheet.open('half');
+        },
+      });
+
+      boardView.onFlipChange = (flipped) => {
+        container.classList.toggle('is-flipped', Boolean(flipped));
+      };
+      container.classList.toggle('is-flipped', Boolean(boardView.flipped));
+
+      layoutManager = new LayoutManager({
+        rootEl: container,
+        testMode: ctx.testMode,
+        onChange: ({ mode: layoutMode, compactBoard }) => {
+          if (boardView) boardView.setCompactMode(compactBoard);
+          if (bottomSheet) bottomSheet.setEnabled(layoutMode === 'stack');
+        },
       });
 
       ctx.sfx.voice.onCaption = (info) => {
@@ -524,6 +671,18 @@ export function createGameScreen(ctx) {
         window.removeEventListener('beforeunload', onBeforeUnload);
         onBeforeUnload = null;
         leakTracker.trackListener(-1);
+      }
+      if (layoutManager) {
+        layoutManager.dispose();
+        layoutManager = null;
+      }
+      if (moveStrip) {
+        moveStrip.dispose();
+        moveStrip = null;
+      }
+      if (bottomSheet) {
+        bottomSheet.dispose();
+        bottomSheet = null;
       }
       if (onlineBridge) {
         onlineBridge.dispose();

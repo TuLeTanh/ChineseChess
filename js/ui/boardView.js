@@ -129,6 +129,8 @@ export class BoardView {
 
     this.flipped = false;
     this.flipAngle = 0;
+    this.compactMode = false;
+    this.viewBox = { x: 0, y: 0, w: BOARD_WIDTH, h: BOARD_HEIGHT };
     this.animator = new Animator();
 
     /** @type {import('../model/moves.js').Pos | null} */
@@ -418,6 +420,26 @@ export class BoardView {
     }
   }
 
+  /** Toggle compact viewBox for narrow screens (< 480 px) without recreating SVG. */
+  setCompactMode(compact) {
+    const next = Boolean(compact);
+    if (this.compactMode === next) return;
+    this.compactMode = next;
+    // Grid spans 125..925 x 125..1025, disc radius 44, margin 8 => 73..977 x 73..1077
+    this.viewBox = next
+      ? { x: 73, y: 73, w: 904, h: 1004 }
+      : { x: 0, y: 0, w: BOARD_WIDTH, h: BOARD_HEIGHT };
+    if (this.svg) {
+      this.svg.setAttribute(
+        'viewBox',
+        `${this.viewBox.x} ${this.viewBox.y} ${this.viewBox.w} ${this.viewBox.h}`
+      );
+    }
+    if (this.wrapper) {
+      this.wrapper.classList.toggle('is-compact-board', next);
+    }
+  }
+
   /** Set flipped orientation immediately (no animation, e.g. when starting AI game as Black). */
   setFlipped(flipped) {
     this.flipped = Boolean(flipped);
@@ -425,6 +447,7 @@ export class BoardView {
     this._applyFlipTransform();
     this.renderPieces();
     this._renderOverlays();
+    if (typeof this.onFlipChange === 'function') this.onFlipChange(this.flipped);
   }
 
   /** Programmatically execute a move with full animation, sound, and highlight (used by AI or online). */
@@ -545,6 +568,7 @@ export class BoardView {
     const startAngle = this.flipAngle;
     this.flipped = !this.flipped;
     const endAngle = this.flipped ? 180 : 0;
+    if (typeof this.onFlipChange === 'function') this.onFlipChange(this.flipped);
 
     this.animator.tween({
       duration: 350,
@@ -675,11 +699,12 @@ export class BoardView {
    */
   clientToBoard(clientX, clientY) {
     const rect = this.svg.getBoundingClientRect();
-    const scaleX = BOARD_WIDTH / Math.max(1, rect.width);
-    const scaleY = BOARD_HEIGHT / Math.max(1, rect.height);
+    const vb = this.viewBox || { x: 0, y: 0, w: BOARD_WIDTH, h: BOARD_HEIGHT };
+    const scaleX = vb.w / Math.max(1, rect.width);
+    const scaleY = vb.h / Math.max(1, rect.height);
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
+      x: vb.x + (clientX - rect.left) * scaleX,
+      y: vb.y + (clientY - rect.top) * scaleY,
     };
   }
 

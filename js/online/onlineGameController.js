@@ -85,7 +85,8 @@ export class OnlineGameBridge {
       this.conn?.send('game.draw.respond', { accept: false });
     });
 
-    this.stageEl.append(this.disconnectBanner, this.drawToast, this.reconnectOverlay);
+    const host = this.stageEl.querySelector('.game-board-host') || this.stageEl;
+    host.append(this.disconnectBanner, this.drawToast, this.reconnectOverlay);
 
     // Online action bar in side panel (Xin hòa / Đầu hàng)
     this.onlineActions = document.createElement('div');

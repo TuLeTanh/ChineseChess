@@ -864,10 +864,10 @@ export function createOnlineServer(opts = {}) {
         'Content-Type': mime,
         'Content-Length': st.size,
         'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'SAMEORIGIN',
+        'X-Frame-Options': 'DENY',
         'Referrer-Policy': 'no-referrer',
         'Content-Security-Policy':
-          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self';",
+          "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; worker-src 'self'; frame-ancestors 'none';",
       });
       fs.createReadStream(fullPath).pipe(res);
     });

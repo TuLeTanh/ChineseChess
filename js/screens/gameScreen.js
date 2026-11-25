@@ -23,6 +23,7 @@ import { LayoutManager } from '../ui/layoutManager.js';
 import { MoveStrip } from '../ui/moveStrip.js';
 import { BottomSheet } from '../ui/bottomSheet.js';
 import { HapticsManager } from '../ui/haptics.js';
+import { WakeLockController } from '../app/wakeLock.js';
 import { AI_LEVELS } from '../ai/levels.js';
 
 export function createGameScreen(ctx) {
@@ -33,6 +34,7 @@ export function createGameScreen(ctx) {
   let layoutManager = null;
   let moveStrip = null;
   let bottomSheet = null;
+  let wakeLock = null;
   let onKeyDown = null;
   let onBeforeUnload = null;
   let onVisChange = null;
@@ -427,6 +429,7 @@ export function createGameScreen(ctx) {
         onPanelUpdated: (info) => {
           if (moveStrip) moveStrip.update(info.viewPly);
           renderMobileControls(info);
+          if (wakeLock) wakeLock.sync();
           if (topChipEl && controller) {
             const lvl = (AI_LEVELS.find((l) => l.id === controller.aiLevel) || AI_LEVELS[1]).name;
             topChipEl.textContent =
@@ -597,6 +600,17 @@ export function createGameScreen(ctx) {
         await onlineBridge.attach();
       }
 
+      wakeLock = new WakeLockController({
+        shouldHold: () =>
+          Boolean(
+            controller &&
+            !controller.disposed &&
+            !controller.isGameOver() &&
+            ctx.settingsStore.get().keepAwake !== false
+          ),
+      });
+      wakeLock.sync();
+
       unsubSettings = ctx.settingsStore.subscribe((s) => {
         if (!controller || controller.disposed) return;
         const th = ctx.getTheme();
@@ -605,6 +619,7 @@ export function createGameScreen(ctx) {
         sidePanel.setTheme(th);
         sidePanel.syncAudio(s.audio.muted, s.audio.volume, s.audio.voice);
         sidePanel.setShowPool(s.jieqi.showPool);
+        if (wakeLock) wakeLock.sync();
       });
 
       onBeforeUnload = () => {
@@ -696,6 +711,10 @@ export function createGameScreen(ctx) {
         window.removeEventListener('beforeunload', onBeforeUnload);
         onBeforeUnload = null;
         leakTracker.trackListener(-1);
+      }
+      if (wakeLock) {
+        wakeLock.dispose();
+        wakeLock = null;
       }
       if (layoutManager) {
         layoutManager.dispose();

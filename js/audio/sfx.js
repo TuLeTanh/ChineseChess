@@ -51,6 +51,8 @@ export class SfxManager {
     this._initPromise = null;
     /** @type {Set<number>} */
     this._timers = new Set();
+    this._iosUnlocked = false;
+    this._unlockBound = false;
 
     this.muted = false;
     this.volume = 0.7;
@@ -60,6 +62,8 @@ export class SfxManager {
     if (this.testMode && typeof window !== 'undefined') {
       window.__sfxLog = [];
     }
+
+    this._installGestureUnlock();
 
     this.voice = new VoicePlayer({
       getAudioContext: () => this.ctx,
@@ -119,12 +123,53 @@ export class SfxManager {
     }
   }
 
+  _installGestureUnlock() {
+    if (this._unlockBound || typeof window === 'undefined') return;
+    this._unlockBound = true;
+    const onGesture = () => {
+      if (this.muted) return;
+      try {
+        this.ensureReady();
+        if (this.ctx && !this._iosUnlocked) {
+          this._iosUnlocked = true;
+          const silent = this.ctx.createBuffer(1, 1, this.ctx.sampleRate || 22050);
+          const src = this.ctx.createBufferSource();
+          src.buffer = silent;
+          src.connect(this.ctx.destination);
+          src.start(0);
+        }
+      } catch {
+        // ignore blocked autoplay errors
+      }
+    };
+    for (const evName of ['pointerup', 'touchend', 'click', 'keydown']) {
+      window.addEventListener(evName, onGesture, { passive: true, capture: true });
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && this.ctx && !this.muted && this.ctx.state !== 'running') {
+          this.ctx.resume().catch(() => {});
+        }
+      });
+    }
+  }
+
   ensureReady() {
     if (this.muted) return Promise.resolve();
     if (!this.ctx && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
-        this.ctx = new AudioCtx();
+        try {
+          this.ctx = new AudioCtx();
+          this.ctx.addEventListener('statechange', () => {
+            if (this.ctx && !this.muted && (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted')) {
+              this.ctx.resume().catch(() => {});
+            }
+          });
+        } catch {
+          this.ctx = null;
+        }
+        if (this.ctx) {
         const now = this.ctx.currentTime;
 
         // Limiter-style compressor on master: -3 dB, knee 0, ratio 20, attack 1 ms, release 60 ms
@@ -151,9 +196,10 @@ export class SfxManager {
         this.voiceGain = this.ctx.createGain();
         this.voiceGain.gain.setValueAtTime(VOICE_BUS_GAIN, now);
         this.voiceGain.connect(this.masterGain);
+        }
       }
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
+    if (this.ctx && (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted')) {
       this.ctx.resume().catch(() => {});
     }
     if (!this._initPromise) {

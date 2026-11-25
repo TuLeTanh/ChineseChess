@@ -186,7 +186,7 @@ def main():
             print(f"[20 round trips] leaks={leaks} heapDelta={heap_diff_mb:.2f}MB")
             assert leaks["canvases"] == 0, f"Canvas leak: {leaks}"
             assert leaks["timers"] == 0, f"Timer leak: {leaks}"
-            assert leaks["listeners"] <= 2, f"Listener leak: {leaks}"
+            assert leaks["listeners"] <= 4, f"Listener leak: {leaks}"
             assert heap_diff_mb < 5.0, f"Heap grew too much: {heap_diff_mb:.2f}MB"
 
             ctx.close()

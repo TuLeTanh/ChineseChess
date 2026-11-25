@@ -94,7 +94,7 @@ def main():
                         const gap = now - last;
                         if (gaps.length > 0 || now - start > 5) gaps.push(gap);
                         last = now;
-                        if (now - start >= 800) {
+                        if (now - start >= 1800) {
                             const sorted = gaps.slice().sort((a, b) => a - b);
                             const p95 = sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] : 0;
                             const over50 = sorted.filter(g => g > 50.0).length;

@@ -9,6 +9,7 @@
  */
 import { buildFxSvgDefs, buildFlagClothPath } from './swords.js';
 import { createParticlePlan, renderParticles } from './particles.js';
+import { isCoarse } from '../ui/device.js';
 
 export const FX_TIMINGS = {
   win: {
@@ -106,7 +107,17 @@ export function playEndFx(opts) {
   const accent = theme?.ui?.fxAccent || theme?.ui?.accentGold || '#F2C14E';
   const accent2 = theme?.ui?.fxAccent2 || '#E07A3F';
   const drawAccent = theme?.ui?.fxDrawAccent || '#C9D8DE';
-  const plan = createParticlePlan(kind, 20261124);
+  const coarse = isCoarse();
+  const rawPlan = createParticlePlan(kind, 20261124);
+  const plan = coarse
+    ? {
+        ...rawPlan,
+        sparks: Array.isArray(rawPlan.sparks) ? rawPlan.sparks.slice(0, Math.ceil(rawPlan.sparks.length * 0.5)) : rawPlan.sparks,
+        embers: Array.isArray(rawPlan.embers) ? rawPlan.embers.slice(0, Math.ceil(rawPlan.embers.length * 0.5)) : rawPlan.embers,
+        dust: Array.isArray(rawPlan.dust) ? rawPlan.dust.slice(0, Math.ceil(rawPlan.dust.length * 0.5)) : rawPlan.dust,
+        petals: Array.isArray(rawPlan.petals) ? rawPlan.petals.slice(0, Math.ceil(rawPlan.petals.length * 0.5)) : rawPlan.petals,
+      }
+    : rawPlan;
 
   // Caption & glyph text
   let glyph = '勝';
@@ -364,16 +375,17 @@ export function playEndFx(opts) {
       // Hit-stop freeze 60 ms at clash (1150..1210)
       const inHitStop = tl >= 1150 && tl < 1210;
       const shakeT = tl >= 1210 ? tl - 1210 : -1;
+      const shakeScale = Math.min(1, Math.max(0.4, cssW / 600));
       let shakeX = 0;
       let shakeY = 0;
       if (shakeT >= 0 && shakeT <= 220) {
-        const amp = 6 * (1 - shakeT / 220);
+        const amp = 6 * shakeScale * (1 - shakeT / 220);
         shakeX = Math.sin(shakeT * 0.085) * amp;
         shakeY = Math.cos(shakeT * 0.11) * amp;
       }
       const sealShakeT = tl - 2520;
       if (sealShakeT >= 0 && sealShakeT <= 140) {
-        const amp = 3 * (1 - sealShakeT / 140);
+        const amp = 3 * shakeScale * (1 - sealShakeT / 140);
         shakeX += Math.sin(sealShakeT * 0.12) * amp;
         shakeY += Math.cos(sealShakeT * 0.14) * amp;
       }

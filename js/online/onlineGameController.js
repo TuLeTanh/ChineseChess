@@ -391,7 +391,7 @@ export class OnlineGameBridge {
     const modalRoot = this.ctx.modalRoot;
     modalRoot.hidden = false;
     modalRoot.innerHTML = `
-      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="online-go-title">
+      <div class="modal-backdrop is-gameover-backdrop" role="dialog" aria-modal="true" aria-labelledby="online-go-title">
         <div class="modal-card modal-gameover is-kind-${kind}">
           <h3 id="online-go-title"></h3>
           <p class="gameover-stats">Số nước: ${plies}</p>

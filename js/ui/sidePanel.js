@@ -272,7 +272,7 @@ export class SidePanel {
 
     this.modalRoot.hidden = false;
     this.modalRoot.innerHTML = `
-      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="gameover-title">
+      <div class="modal-backdrop is-gameover-backdrop" role="dialog" aria-modal="true" aria-labelledby="gameover-title">
         <div class="modal-card modal-gameover is-kind-${kind}">
           ${swordsEmblem}
           <h3 id="gameover-title">${resultText}</h3>

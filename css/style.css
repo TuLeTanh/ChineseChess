@@ -3893,3 +3893,107 @@ body.mode-effects .board-stage {
     transition: none !important;
   }
 }
+
+/* =========================================================
+   Upgrade Pass 2 (C5): Small-Screen Modals, Toasts, Result Card
+   ========================================================= */
+.board-toast,
+.online-disconnect-banner,
+.online-draw-toast,
+.review-banner {
+  max-width: calc(100% - 16px);
+}
+
+.game-board-host.has-disconnect-banner .board-toast {
+  top: 56px;
+}
+
+@media (max-width: 599px) {
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-backdrop.is-gameover-backdrop {
+    align-items: center;
+    padding: 12px;
+    bottom: calc(var(--controls-h, 52px) + var(--sab, 0px) + 4px);
+  }
+
+  .modal-card:not(.modal-gameover) {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(var(--vvh, 100dvh) - 16px);
+    border-radius: 16px 16px 0 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px 16px calc(18px + var(--sab, 0px));
+  }
+
+  .modal-gameover {
+    width: min(360px, 92vw);
+    max-width: 92vw;
+    max-height: 80dvh;
+    overflow-y: auto;
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .modal-gameover .modal-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-gameover .modal-actions .pill-btn {
+    width: 100%;
+    min-height: 48px;
+    height: 48px;
+  }
+
+  .modal-card .modal-actions .pill-btn {
+    min-height: 44px;
+    height: 44px;
+  }
+
+  .settings-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(var(--vvh, 100dvh) - 16px);
+  }
+
+  .settings-close {
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .settings-tab {
+    min-height: 44px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .review-banner {
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: 12px;
+    padding: 6px 10px;
+    gap: 6px;
+    white-space: normal;
+  }
+
+  .review-banner-btn {
+    min-height: 44px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .fx-skip-btn {
+    min-height: 44px;
+    min-width: 72px;
+    padding: 0 16px;
+  }
+}

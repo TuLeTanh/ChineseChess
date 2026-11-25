@@ -1133,20 +1133,28 @@ body.mode-preview .board-stage {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  flex-wrap: wrap;
+  gap: 3px;
   width: 100%;
   min-width: 0;
-  padding: 3px 6px;
+  padding: 3px 4px;
   border-radius: 6px;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.035);
   color: var(--text-primary);
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: transform 110ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.move-chip .move-text {
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .move-chip:hover {
@@ -2533,16 +2541,17 @@ body.mode-effects .board-stage {
 }
 
 .move-reveal-badge {
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 1px 4px;
-  border-radius: 4px;
+  letter-spacing: 0.02em;
+  padding: 1px 3px;
+  border-radius: 3px;
   background: rgba(217, 164, 65, 0.22);
   color: var(--accent-gold, #F2C14E);
-  margin-left: 3px;
-  line-height: 1.1;
+  margin-left: 1px;
+  line-height: 1.05;
+  flex-shrink: 0;
 }
 
 .jieqi-pool-panel {

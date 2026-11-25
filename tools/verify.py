@@ -113,7 +113,7 @@ def main():
                 else None
             ))
 
-            page.goto(f"{base}/?test&mode=pvp", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/local", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             page.wait_for_timeout(150)
 
@@ -282,7 +282,7 @@ def main():
 
             # 2. Checkmate scenario -> Screenshot: app_checkmate.png + verify voice:checkmate then voice:checkmate2
             mate_setup = urllib.parse.quote("4k4/R8/1R7/9/9/9/9/9/9/3K5 w - - 0 1")
-            page.goto(f"{base}/?test&mode=pvp&fen={mate_setup}", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/local?fen={mate_setup}", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             page.wait_for_timeout(120)
             clear_sfx_log(page)
@@ -311,7 +311,7 @@ def main():
             assert page.locator(".move-row").count() == 0, "Undo must work after game over"
 
             # 2a. Part 1 & Part 2 Review Mode + Move List + Timeline E2E verification
-            page.goto(f"{base}/?test&mode=pvp", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/local", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             page.wait_for_timeout(120)
             # Play 8 plies including a capture & check
@@ -401,7 +401,7 @@ def main():
             assert v_trunc["ply"] == 4 and v_trunc["total"] == 4, f"Truncate failed: {v_trunc}"
 
             # Long 60-ply game: hidden native scrollbar + fade masks + preview/app_movelist_long.png
-            page.goto(f"{base}/?test&mode=pvp", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/local", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             page.evaluate("""async () => {
                 const { XiangqiRules } = await import('./js/rules.js');
@@ -459,7 +459,7 @@ def main():
             assert page.locator("button[data-fx='win-red']").is_visible(), "Expected ?effects buttons"
 
             # 2b. Play vs AI verification (Web Worker, non-blocking rAF, thinking, hint, undo 2 plies, Black auto-flip, resign)
-            page.goto(f"{base}/?mode=ai&side=red&level=cao-thu", wait_until="networkidle")
+            page.goto(f"{base}/#/play/cotuong/ai?side=red&level=cao-thu", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             page.wait_for_timeout(150)
 
@@ -544,7 +544,7 @@ def main():
             print("[app_vs_ai_gameover.png] saved")
 
             # AI reply arriving during review does NOT jump viewPly & lights "Có nước mới" dot
-            page.goto(f"{base}/?test&mode=ai&side=red&level=cao-thu", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/ai?side=red&level=cao-thu", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             click_move(page, 7, 7, 4, 7)
             # Immediately enter review at ply 0 while AI is thinking
@@ -560,7 +560,7 @@ def main():
             print("[review AI background reply] ok (viewPly stayed 0, 'Có nước mới' lit)")
 
             # 3. Responsive layout check
-            page.goto(f"{base}/?mode=pvp", wait_until="networkidle")
+            page.goto(f"{base}/#/play/cotuong/local", wait_until="networkidle")
             for vw, vh in [(960, 680), (1180, 780), (1600, 900)]:
                 page.set_viewport_size({"width": vw, "height": vh})
                 page.wait_for_timeout(80)

@@ -90,7 +90,7 @@ def find_7z() -> str | None:
     if seven_z:
         return seven_z
     for cand in [
-        r"C:\Users\ADMIN\scoop\shims\7z.exe",
+        str(Path.home() / "scoop" / "shims" / "7z.exe"),
         r"C:\Program Files\7-Zip\7z.exe",
         r"C:\Program Files (x86)\7-Zip\7z.exe",
     ]:

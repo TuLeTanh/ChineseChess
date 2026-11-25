@@ -2,6 +2,7 @@ import { RED, BLACK } from '../model/piece.js';
 import { GameStatus } from '../rules.js';
 import { pieceSymbolId } from '../render/pieceSvg.js';
 import { AI_LEVELS } from '../ai/levels.js';
+import { NON_GENERAL_KINDS } from '../jieqi/rules.js';
 
 /**
  * Format a game-over status into Vietnamese result text (supports 2-player and AI modes).
@@ -68,7 +69,10 @@ export class SidePanel {
     this.modalRoot = opts.modalRoot;
     this.board = opts.board;
     this.theme = opts.theme;
-    this.practiceMode = Boolean(opts.practiceMode);
+    this.variant = opts.variant || 'cotuong';
+    this.isJieqi = this.variant === 'coup' || this.variant === 'jieqi' || Boolean(this.board && this.board.isJieqi);
+    this.showPool = opts.showPool !== false;
+    this.practiceMode = Boolean(opts.practiceMode) && !this.isJieqi;
     this.mode = opts.mode || 'pvp';
     this.playerSide = opts.playerSide || RED;
     this.aiLevel = opts.aiLevel || 'nghiep-du';
@@ -102,6 +106,12 @@ export class SidePanel {
   setTheme(theme) {
     this.theme = theme;
     this.update(this.gameStatus);
+  }
+
+  /** Toggle Cờ Úp remaining-pool panel visibility. */
+  setShowPool(show) {
+    this.showPool = Boolean(show);
+    this._renderPoolPanel();
   }
 
   /** Update Pikafish availability & selected engine type. */
@@ -312,11 +322,15 @@ export class SidePanel {
     this.turnDot.className = `turn-dot ${viewedSide === RED ? 'is-red' : 'is-black'}`;
     this.themeBtn.title = `Giao diện hiện tại: ${this.theme.name}`;
 
-    // Undo button disabled at start (or in AI mode when only AI moved first as Red and it's player's turn)
-    const canUndo = vsAi
-      ? total >= 2 || (total === 1 && this.aiThinking)
-      : total > 0;
+    // Undo button disabled at start (or in Cờ Úp AI/online mode, or when only AI moved first as Red)
+    const undoDisallowed = this.isJieqi && (vsAi || this.mode === 'online');
+    const canUndo = undoDisallowed
+      ? false
+      : vsAi
+        ? total >= 2 || (total === 1 && this.aiThinking)
+        : total > 0;
     this.undoBtn.disabled = !canUndo;
+    this.undoBtn.title = undoDisallowed ? 'Cờ Úp không cho đi lại' : 'Đi lại (Ctrl+Z)';
 
     if (resultText) {
       this.resultBanner.textContent = resultText;
@@ -341,16 +355,28 @@ export class SidePanel {
     this._renderMoveList(Boolean(opts.skipScroll));
     this._renderTimeline();
     this._syncReviewControls();
+    this._renderPoolPanel();
   }
 
   _syncAiCardsAndButtons(disableAiActions = false) {
     const vsAi = this.mode === 'ai';
-    const pfAvail = Boolean(this.pikafishInfo && this.pikafishInfo.available);
+    const pfAvail = !this.isJieqi && Boolean(this.pikafishInfo && this.pikafishInfo.available);
     this.aiConfigRow.hidden = !vsAi;
-    this.engineRow.hidden = !vsAi || !pfAvail;
-    this.engineHint.hidden = !vsAi || pfAvail;
+    this.engineRow.hidden = !vsAi || !pfAvail || this.isJieqi;
+    this.engineHint.hidden = !vsAi || pfAvail || this.isJieqi;
     this.aiActionsRow.hidden = !vsAi;
-    this.practiceWrap.hidden = vsAi;
+    this.practiceWrap.hidden = vsAi || this.isJieqi;
+
+    if (this.variantHeaderEl) {
+      if (this.isJieqi) {
+        const levelObj = AI_LEVELS.find((l) => l.id === this.aiLevel) || AI_LEVELS[1];
+        const modeTxt = vsAi ? `Đấu máy · ${levelObj.name}` : this.mode === 'online' ? 'Trực tuyến' : 'Hai người';
+        this.variantHeaderEl.textContent = `Cờ Úp · ${modeTxt}`;
+        this.variantHeaderEl.hidden = false;
+      } else {
+        this.variantHeaderEl.hidden = true;
+      }
+    }
 
     this.modePvpBtn.classList.toggle('is-selected', !vsAi);
     this.modeAiBtn.classList.toggle('is-selected', vsAi);
@@ -409,6 +435,7 @@ export class SidePanel {
     ).join('');
 
     this.container.innerHTML = `
+      <div class="variant-header-pill" hidden></div>
       <div class="mode-bar">
         <div class="segmented" role="tablist" aria-label="Chế độ chơi">
           <button type="button" class="seg-btn" data-mode="pvp">Hai người</button>
@@ -472,6 +499,8 @@ export class SidePanel {
         </div>
       </section>
 
+      <section class="jieqi-pool-panel" aria-label="Quân úp còn lại" hidden></section>
+
       <section class="player-card player-card-red" data-side="red">
         <div class="player-header">
           <div class="player-avatar avatar-red">帥</div>
@@ -518,6 +547,8 @@ export class SidePanel {
       </div>
     `;
 
+    this.variantHeaderEl = this.container.querySelector('.variant-header-pill');
+    this.poolPanelEl = this.container.querySelector('.jieqi-pool-panel');
     this.modePvpBtn = this.container.querySelector('[data-mode="pvp"]');
     this.modeAiBtn = this.container.querySelector('[data-mode="ai"]');
     this.aiConfigRow = this.container.querySelector('.ai-config-row');
@@ -786,11 +817,13 @@ export class SidePanel {
     const isViewed = ply === this.viewPly;
     const isLatestLive = ply === total && this.viewPly !== total;
     const isCap = Boolean(move.captured);
+    const isRev = Boolean(move.wasCovered && move.reveal);
     const isMate = move.suffix === '#' || Boolean(move.isCheckmate);
     const isChk = !isMate && (move.suffix === '+' || Boolean(move.gaveCheck));
 
     const classes = ['move-chip', sideClass];
     if (isCap) classes.push('is-capture');
+    if (isRev) classes.push('is-reveal');
     if (isChk) classes.push('is-check');
     if (isMate) classes.push('is-checkmate');
     if (isViewed) classes.push('is-viewed');
@@ -800,14 +833,16 @@ export class SidePanel {
     const symId = pieceSymbolId(this.theme.id, move.piece.side, move.piece.kind, 'live');
     const ariaCurr = isViewed ? ' aria-current="step"' : '';
     const tabIdx = isViewed ? '0' : '-1';
+    const titleAttr = isRev ? ` title="Lật quân: ${move.iccs}${move.revealSuffix || ''}"` : '';
     const capSvg = isCap
       ? '<svg class="move-cap-icon" viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
       : '';
+    const revBadge = isRev ? '<span class="move-reveal-badge" aria-hidden="true">lật</span>' : '';
     const chkDot = isChk ? '<span class="move-check-dot" aria-hidden="true"></span>' : '';
     const liveDot = isLatestLive ? '<span class="move-live-dot" aria-hidden="true"></span>' : '';
 
     // NOTE: keep text content strictly equal to `${move.iccs}${move.suffix || ''}` for notation/test compatibility
-    return `<button type="button" class="${classes.join(' ')}" data-ply="${ply}" tabindex="${tabIdx}"${ariaCurr}><svg class="move-piece-icon" viewBox="0 0 120 120" width="18" height="18" aria-hidden="true"><use href="#${symId}" width="120" height="120"/></svg><span class="move-text">${move.iccs}${move.suffix || ''}</span>${capSvg}${chkDot}${liveDot}</button>`;
+    return `<button type="button" class="${classes.join(' ')}" data-ply="${ply}" tabindex="${tabIdx}"${ariaCurr}${titleAttr}><svg class="move-piece-icon" viewBox="0 0 120 120" width="18" height="18" aria-hidden="true"><use href="#${symId}" width="120" height="120"/></svg><span class="move-text">${move.iccs}${move.suffix || ''}</span>${revBadge}${capSvg}${chkDot}${liveDot}</button>`;
   }
 
   _renderMoveList(skipScroll = false) {
@@ -933,6 +968,9 @@ export class SidePanel {
       );
       if (isCap) {
         parts.push(`<circle cx="${cx.toFixed(2)}" cy="${Math.max(4, y - 3.5).toFixed(1)}" r="1.9" fill="#F2C14E"/>`);
+      } else if (m.wasCovered && m.reveal) {
+        const dy = Math.max(4, y - 3.8);
+        parts.push(`<polygon points="${cx.toFixed(2)},${(dy - 2.3).toFixed(1)} ${(cx + 2.3).toFixed(2)},${dy.toFixed(1)} ${cx.toFixed(2)},${(dy + 2.3).toFixed(1)} ${(cx - 2.3).toFixed(2)},${dy.toFixed(1)}" fill="${accent}"/>`);
       }
     }
 
@@ -958,6 +996,34 @@ export class SidePanel {
     this.revPlayBtn.classList.toggle('is-playing', this.autoPlaying);
     this.revPlayBtn.textContent = this.autoPlaying ? '⏸' : '⏯';
     this.revNewDot.hidden = !(this.hasNewMoves && this.viewPly < total);
+  }
+
+  _renderPoolPanel() {
+    if (!this.poolPanelEl) return;
+    if (!this.isJieqi || !this.showPool || typeof this.board.getPool !== 'function') {
+      this.poolPanelEl.hidden = true;
+      return;
+    }
+    this.poolPanelEl.hidden = false;
+    const pool = this.board.getPool(this.viewPly);
+
+    const buildRow = (side, label) => {
+      const counts = pool[side] || {};
+      let sum = 0;
+      const items = NON_GENERAL_KINDS.map((kind) => {
+        const n = counts[kind] || 0;
+        sum += n;
+        const symId = pieceSymbolId(this.theme.id, side, kind, 'live');
+        return `<span class="pool-item${n === 0 ? ' is-zero' : ''}" data-kind="${kind}"><svg viewBox="0 0 120 120" width="20" height="20" aria-hidden="true"><use href="#${symId}" width="120" height="120"/></svg><span class="pool-count">${n}</span></span>`;
+      }).join('');
+      return `<div class="pool-row" data-pool-side="${side}"><span class="pool-side-label">${label}: <strong>${sum}</strong></span><div class="pool-items">${items}</div></div>`;
+    };
+
+    this.poolPanelEl.innerHTML = `
+      <div class="pool-title">Quân úp còn lại</div>
+      ${buildRow(BLACK, 'Đen')}
+      ${buildRow(RED, 'Đỏ')}
+    `;
   }
 
   _openNewGameModal() {

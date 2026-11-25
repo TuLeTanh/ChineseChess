@@ -162,3 +162,39 @@
   - Cross-env touch tests (`390×844` & `820×1180`): tap-to-move works, side panel clipped due to `min-width: 960px`, `touch-action: auto` noted.
   - Fresh-clone check into `<temp>/thư mục thử/ChineseChess`: JS engine works out of the box (1 expected `404` on absent `manifest.json`), `setup_engine.py` downloads & probes Pikafish cleanly, `/api/engine/info` reports `available: true`.
   - Performance: `594 ms` first load, `61.5 KB` tracked `assets/`, flat `16.31 MB` heap across 100 plies and 10 new games, `0` idle rAF callbacks.
+
+## Feature Branch `feat/lobby-jieqi-online`
+### Phase 0 — Foundations & Refactor
+- Added root `package.json` (`"type": "module"`) and `tests/core-import.test.js` verifying zero DOM/window access in core model/rules/AI/variant modules.
+- Built hash router (`js/app/router.js`) with screen lifecycle `{ mount, unmount }`, `window.__router`, and `window.__leaks`.
+- Added versioned settings store (`js/app/settings.js`, `xq_settings_v1`, legacy migration, persisted `theme`, `nickname`, `guestId`, `bgQuality`, `jieqi`, `online`, `last`, `ratings`).
+- Extracted `js/pages/utilityPages.js`, `js/game/GameController.js`, `js/screens/gameScreen.js`, and `js/variants/xiangqi.js`; reduced `js/main.js` to a 132-line bootstrap.
+- Fixed audit items: `Path.home()` 7z lookup in `tools/setup_engine.py`, silent `200 OK {"empty":true}` fallback on missing `assets/voice/manifest.json`.
+- All gates passed (`23/23` unit tests, `verify.py`, `verify_races.py`, `verify_fx.py`, `verify_engine.py`).
+
+### Phase 1 — Lobby, Animated Background, Mode Select & Settings
+- Built `js/ui/lobbyBackground.js` ("Đêm hội đèn lồng bên sông": night sky, moon, twinkling stars, 3 ink-wash mountain layers with parallax, mist, single DPR-capped canvas with lanterns, fireflies, petals, shooting star, ink stamps, hover mood crossfade, adaptive quality, `bgQuality` high/low/off, `prefers-reduced-motion`, zero rAF in game).
+- Built `js/screens/lobbyScreen.js`, `js/screens/modeScreen.js`, `js/ui/eloBar.js`, and `js/ui/settingsModal.js` (7 tabs, focus trap, Esc close, live validation, persisted theme/nickname/audio/Cờ Úp/online URL).
+- Added in-game top-left `← Sảnh` (with leave confirmation if game in progress) and `⚙` buttons.
+- Added `tools/verify_lobby.py`: passed `1600x900 .. 360x740` (0 horizontal overflow), `maxGap <= 50 ms`, `0` idle rAF in game, `0` leaks & `0.00 MB` heap delta across 20 round trips, `errors=0 warnings=0`.
+
+
+## Phase 2 — Cờ Úp (Jieqi) (branch `feat/lobby-jieqi-online`)
+- Implemented pure Node-importable Cờ Úp rules (`js/jieqi/rules.js`), variant descriptor (`js/variants/jieqi.js`), PIMC AI presets (`js/ai/levelsJieqi.js`), PIMC search (`js/ai/jieqiSearch.js`), and Vietnamese rules reference (`docs/RULES_JIEQI.md`).
+- Added covered-piece SVG art (`pieceBackSymbolId`, lacquer crimson + ebony medallions) in `js/render/pieceSvg.js`, reveal flip animation and `"?"` target hints in `js/ui/boardView.js`, remaining-pool panel and reveal badges/diamonds in `js/ui/sidePanel.js`, and pentatonic pitched `reveal` synth sound in `js/audio/synth.js` + `js/audio/sfx.js`.
+- Wired Cờ Úp into Web Worker (`js/ai/worker.js`, `js/ai/client.js`), `GameController`, and `gameScreen` (disabling undo & truncate in Cờ Úp AI/online modes).
+- Added `tests/jieqi.test.js` (10/10 invariants incl. 44/1920, 300×5 legality independence, 300-ply undo round-trip, no-peeking), `tests/jieqiAi.test.js` (4/4 incl. 100 random positions, 3 mate-in-1 puzzles, 4-game self-play, no-peeking), and `tools/verify_jieqi.py` (passed with `errors=0 warnings=0`).
+- All 32/32 Node unit tests + `verify_sound.py` (19 buffers incl. `reveal` peak 0.54) + `verify_jieqi.py` + `verify.py` passed.
+
+
+## Phase 3 — Online Play (branch `feat/lobby-jieqi-online`)
+- Added shared protocol (`js/online/protocol.js`), authoritative Node + `ws` server (`server/package.json`, `server/package-lock.json`, `server/index.js`), browser client (`js/online/connection.js`, `js/online/onlineModals.js`, `js/online/onlineGameController.js`).
+- Features: FIFO matchmaking (120 s timeout), 6-char private rooms + `#/join/<CODE>` invite links, server-authoritative Xiangqi & Cờ Úp (server-only `_secret`, zero wire leak), monotonic `hrtime.bigint()` clocks + timeout, 90 s/180 s reconnect grace & reload resync, draw offers, resign, rematch with swapped colors, strict static whitelist, origin checks, rate limits, and XSS-safe `textContent` nicknames.
+- Added `Dockerfile`, `.dockerignore`, `docs/DEPLOY.md`, `docs/PROTOCOL.md`, updated `README.md` and `docs/DECISIONS.md`, and curated 6 optimized screenshots in `docs/screenshots/` (163–305 KB each).
+- Added `tests/online/server.test.js` (7/7 passed) and `tools/verify_online.py` (2 Playwright contexts: quick-match, reload resync, room link Cờ Úp, XSS check — passed with `err=0, warn=0`).
+
+
+## QA + Fix + Push Pass (`feat/lobby-jieqi-online`)
+- Added `tests/online/gaps.test.js` (7/7), `tools/verify_security.py`, `tools/verify_explore.py` (seeded monkey test + full UI/route/settings/online checks), and `tools/jieqi_strength.js`.
+- Fixed 4 bugs (1 commit each): `fad3c3f` (CSP `frame-ancestors 'none'` + `X-Frame-Options: DENY`), `514331b` (`.ttf` `font/ttf` MIME type), `891af9e` (read top-level `settings.nickname` in online sessions), `70af926` (prevent side-panel / move-list clipping at 780 px viewport in Cờ Úp).
+- Wrote full QA report in `docs/TEST_REPORT.md` including Cờ Úp AI strength table (5-1-0, 5-0-1, 4-2-0), security headers, visual review, and privacy scan (0 hits).

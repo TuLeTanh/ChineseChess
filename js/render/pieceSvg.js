@@ -51,6 +51,17 @@ export function pieceSymbolId(themeId, side, kind, prefix = 'xq') {
 }
 
 /**
+ * Return the symbol ID for a face-down (covered) Cờ Úp piece.
+ * @param {string} themeId
+ * @param {'red'|'black'} side
+ * @param {string} [prefix]
+ * @returns {string}
+ */
+export function pieceBackSymbolId(themeId, side, prefix = 'xq') {
+  return `${prefix}-${themeId}-${side}-back`;
+}
+
+/**
  * Build shared gradient/filter <defs> for a theme's pieces.
  * @param {import('../theme.js').Theme} theme
  * @param {string} [prefix]
@@ -85,6 +96,28 @@ export function buildPieceSharedDefs(theme, prefix = 'xq') {
     `;
   }).join('');
 
+  const isJade = theme.id === 'ngoc-bich';
+  const backDefs = `
+      <linearGradient id="${p}-red-back-wall" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#6B1414"/>
+        <stop offset="100%" stop-color="#3B0909"/>
+      </linearGradient>
+      <radialGradient id="${p}-red-back-face" cx="50%" cy="50%" fx="40%" fy="30%" r="72%">
+        <stop offset="0%" stop-color="#A82622"/>
+        <stop offset="68%" stop-color="#7D1715"/>
+        <stop offset="100%" stop-color="#4F0C0C"/>
+      </radialGradient>
+      <linearGradient id="${p}-black-back-wall" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${isJade ? '#1D3338' : '#262426'}"/>
+        <stop offset="100%" stop-color="${isJade ? '#0D191C' : '#111012'}"/>
+      </linearGradient>
+      <radialGradient id="${p}-black-back-face" cx="50%" cy="50%" fx="40%" fy="30%" r="72%">
+        <stop offset="0%" stop-color="${isJade ? '#2C4B52' : '#3A383C'}"/>
+        <stop offset="68%" stop-color="${isJade ? '#1A3136' : '#232225'}"/>
+        <stop offset="100%" stop-color="${isJade ? '#0E1C1F' : '#131215'}"/>
+      </radialGradient>
+  `;
+
   return `
     <filter id="${p}-piece-shadow" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="${pc.shadowBlur}"/>
@@ -93,6 +126,56 @@ export function buildPieceSharedDefs(theme, prefix = 'xq') {
       <feGaussianBlur stdDeviation="${(pc.shadowBlur * 1.4).toFixed(2)}"/>
     </filter>
     ${sideDefs}
+    ${backDefs}
+  `;
+}
+
+/**
+ * Build the 7 layers of a face-down (covered) Cờ Úp piece:
+ * same disc geometry/shadow/bevel/gloss as standard pieces, with an ornate
+ * guilloche/fret ring and central lotus-cloud medallion in gold/silver-gold.
+ */
+export function buildPieceBackLayers(side, theme, prefix = 'xq', includeShadow = true) {
+  const p = `${prefix}-${theme.id}`;
+  const isRed = side === 'red';
+  const accent = isRed ? '#E9C46A' : (theme.id === 'ngoc-bich' ? '#9ED8CE' : '#CFC3A6');
+  const accentSoft = isRed ? '#F5DC93' : (theme.id === 'ngoc-bich' ? '#C7ECE6' : '#E3D9C1');
+  const rimStroke = isRed ? '#3E0808' : '#0E1014';
+
+  const shadowY = 66.8 + (theme.piece.shadowOffsetY || 0);
+  const shadowLayer = includeShadow
+    ? `<ellipse cx="61.2" cy="${shadowY}" rx="42" ry="40" fill="#000000" opacity="${theme.piece.shadowOpacity}" filter="url(#${p}-piece-shadow)"/>`
+    : '';
+
+  return `
+    ${shadowLayer}
+    <!-- Thickness -->
+    <circle cx="60" cy="61" r="44" fill="url(#${p}-${side}-back-wall)"/>
+    <!-- Face -->
+    <circle cx="60" cy="56" r="44" fill="url(#${p}-${side}-back-face)" stroke="${rimStroke}" stroke-width="1.4"/>
+    <!-- Bevel -->
+    <circle cx="60" cy="56" r="42.2" fill="none" stroke="url(#${p}-${side}-bevel)" stroke-width="2.2"/>
+    <!-- Outer engraved fret / guilloche rings -->
+    <circle cx="60" cy="56" r="35.5" fill="none" stroke="${accent}" stroke-width="2.4" opacity="0.88"/>
+    <circle cx="60" cy="56" r="30.5" fill="none" stroke="${accent}" stroke-width="1.4" stroke-dasharray="5.2 3.4" opacity="0.78"/>
+    <circle cx="60" cy="56" r="26" fill="none" stroke="${accent}" stroke-width="1" opacity="0.52"/>
+    <!-- Central lotus / cloud medallion -->
+    <g transform="translate(60 56)" fill="none" stroke="${accentSoft}" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 0 -19 C 5 -12 5 -5 0 0 C -5 -5 -5 -12 0 -19 Z" stroke-width="1.8" fill="${accent}" fill-opacity="0.16"/>
+      <path d="M 0 19 C 5 12 5 5 0 0 C -5 5 -5 12 0 19 Z" stroke-width="1.8" fill="${accent}" fill-opacity="0.16"/>
+      <path d="M -19 0 C -12 -5 -5 -5 0 0 C -5 5 -12 5 -19 0 Z" stroke-width="1.8" fill="${accent}" fill-opacity="0.16"/>
+      <path d="M 19 0 C 12 -5 5 -5 0 0 C 5 5 12 5 19 0 Z" stroke-width="1.8" fill="${accent}" fill-opacity="0.16"/>
+      <path d="M -13 -13 C -7 -11 -3 -7 0 0 C -7 -3 -11 -7 -13 -13 Z" stroke-width="1.35" opacity="0.82"/>
+      <path d="M 13 -13 C 7 -11 3 -7 0 0 C 7 -3 11 -7 13 -13 Z" stroke-width="1.35" opacity="0.82"/>
+      <path d="M -13 13 C -7 11 -3 7 0 0 C -7 3 -11 7 -13 13 Z" stroke-width="1.35" opacity="0.82"/>
+      <path d="M 13 13 C 7 11 3 7 0 0 C 7 3 11 7 13 13 Z" stroke-width="1.35" opacity="0.82"/>
+      <circle cx="0" cy="0" r="4.6" fill="${accentSoft}" stroke="${rimStroke}" stroke-width="1"/>
+    </g>
+    <!-- Gloss -->
+    <ellipse cx="49" cy="35.5" rx="23" ry="12.5"
+             transform="rotate(-25 49 35.5)"
+             fill="url(#${p}-${side}-gloss)"
+             pointer-events="none"/>
   `;
 }
 
@@ -177,6 +260,12 @@ export function buildPieceSymbolsDefs(theme, prefix = 'xq') {
         </symbol>
       `);
     }
+    const backId = pieceBackSymbolId(theme.id, side, prefix);
+    symbols.push(`
+      <symbol id="${backId}" viewBox="0 0 120 120" overflow="visible">
+        ${buildPieceBackLayers(side, theme, prefix, true)}
+      </symbol>
+    `);
   }
   return `
     <defs>
@@ -263,6 +352,8 @@ export function renderGalleryHtml(theme) {
           const id = pieceSymbolId(theme.id, side, kind, prefix);
           items.push(`<svg width="${sz}" height="${sz}" viewBox="0 0 120 120" overflow="visible"><use href="#${id}" width="120" height="120"/></svg>`);
         }
+        const backId = pieceBackSymbolId(theme.id, side, prefix);
+        items.push(`<svg width="${sz}" height="${sz}" viewBox="0 0 120 120" overflow="visible"><use href="#${backId}" width="120" height="120"/></svg>`);
       }
       return `
         <div class="gallery-size-block">

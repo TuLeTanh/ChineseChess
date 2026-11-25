@@ -155,7 +155,7 @@ def main():
 
             # 3. Skip jumps to final card within 100 ms & SFX log verification on live checkmate (win)
             mate_setup = urllib.parse.quote("4k4/R8/1R7/9/9/9/9/9/9/3K5 w - - 0 1")
-            page.goto(f"{base}/?test&mode=pvp&fen={mate_setup}", wait_until="networkidle")
+            page.goto(f"{base}/?test#/play/cotuong/local?fen={mate_setup}", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             page.evaluate("() => { if (window.__sfxLog) window.__sfxLog.length = 0; }")
             click_move(page, 1, 2, 1, 0)
@@ -176,7 +176,8 @@ def main():
             assert skip_ms <= 100, f"Skip took too long: {skip_ms:.1f}ms"
 
             # Undo during cinematic leaves zero overlay, zero filter, zero transform
-            page.goto(f"{base}/?test&mode=pvp&fen={mate_setup}", wait_until="networkidle")
+            page.goto("about:blank")
+            page.goto(f"{base}/?test#/play/cotuong/local?fen={mate_setup}", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             click_move(page, 1, 2, 1, 0)
             page.locator(".fx-overlay").wait_for(state="visible", timeout=2000)

@@ -1,0 +1,13 @@
+{
+  "name": "xiangqi-online-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Authoritative WebSocket & static server for Cờ Tướng / Cờ Úp online play.",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

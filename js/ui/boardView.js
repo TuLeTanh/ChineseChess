@@ -6,7 +6,7 @@ import {
   CELL_SIZE,
   buildBoardInnerSvg,
 } from '../render/boardSvg.js';
-import { buildPieceSymbolsDefs, pieceSymbolId } from '../render/pieceSvg.js';
+import { buildPieceSymbolsDefs, pieceSymbolId, pieceBackSymbolId } from '../render/pieceSvg.js';
 import { samePos } from '../model/moves.js';
 import { RED, BLACK } from '../model/piece.js';
 import { Animator, easeOutCubic, easeInOutCubic, lerp } from './anim.js';
@@ -116,12 +116,15 @@ export class BoardView {
     this.onIllegalMove = opts.onIllegalMove || (() => {});
     this.onReturnToLive = opts.onReturnToLive || (() => {});
     this.onContinueFromHere = opts.onContinueFromHere || (() => {});
+    /** Optional online interceptor: if set, human moves call this instead of mutating board directly. */
+    this.onInterceptMove = opts.onInterceptMove || null;
 
     /** @type {import('../model/board.js').Board | null} */
     this.displayBoard = null;
     /** @type {any} */
     this.displayLastMove = null;
     this.reviewActive = false;
+    this.allowContinue = true;
     this._crossFadeCancel = null;
 
     this.flipped = false;
@@ -397,6 +400,15 @@ export class BoardView {
     }
   }
 
+  /** Enable or disable the "Chơi tiếp từ đây" button in review banner (disabled in Cờ Úp AI/online). */
+  setAllowContinue(allowed) {
+    this.allowContinue = Boolean(allowed);
+    if (this.reviewContinueBtn) {
+      this.reviewContinueBtn.disabled = !this.allowContinue;
+      this.reviewContinueBtn.title = this.allowContinue ? '' : 'Cờ Úp không cho đi lại';
+    }
+  }
+
   /** Restrict human pointer input to one side (`'red'|'black'`), or `null` for both sides. */
   setHumanSide(side) {
     this.humanSide = side;
@@ -415,11 +427,11 @@ export class BoardView {
     this._renderOverlays();
   }
 
-  /** Programmatically execute a move with full animation, sound, and highlight (used by AI). */
-  playMove(from, to) {
+  /** Programmatically execute a move with full animation, sound, and highlight (used by AI or online). */
+  playMove(from, to, externalReveal = null) {
     this.clearHintArrow();
     this.clearSelection();
-    this._performMove(from, to, null, false);
+    this._performMove(from, to, null, false, externalReveal);
   }
 
   /** Draw a soft blue hint arrow from `from` to `to` for `durationMs` (default 2500 ms). */
@@ -708,6 +720,7 @@ export class BoardView {
         g.dataset.pos = `${x},${y}`;
         g.dataset.kind = piece.kind;
         g.dataset.side = piece.side;
+        g.dataset.covered = piece.covered ? '1' : '0';
         this.layerPieces.appendChild(g);
       }
     }
@@ -775,11 +788,12 @@ export class BoardView {
     `;
     this.reviewBannerText = this.reviewBannerEl.querySelector('.review-banner-text');
     this.reviewNewBadge = this.reviewBannerEl.querySelector('.review-new-badge');
+    this.reviewContinueBtn = this.reviewBannerEl.querySelector('[data-review="continue"]');
     this.reviewBannerEl.querySelector('[data-review="live"]').addEventListener('click', () => {
       this.onReturnToLive();
     });
-    this.reviewBannerEl.querySelector('[data-review="continue"]').addEventListener('click', () => {
-      this.onContinueFromHere();
+    this.reviewContinueBtn.addEventListener('click', () => {
+      if (this.allowContinue) this.onContinueFromHere();
     });
 
     this.wrapper.append(this.svg, this.reviewBannerEl, this.toastEl, this.captureCaptionEl);
@@ -806,7 +820,9 @@ export class BoardView {
     if (lifted) {
       g.setAttribute('filter', 'drop-shadow(0px 6px 5px rgba(0,0,0,0.34))');
     }
-    const id = pieceSymbolId(this.theme.id, piece.side, piece.kind, 'live');
+    const id = piece.covered
+      ? pieceBackSymbolId(this.theme.id, piece.side, 'live')
+      : pieceSymbolId(this.theme.id, piece.side, piece.kind, 'live');
     const use = svgEl('use', {
       href: `#${id}`,
       x: -PIECE_ANCHOR_X,
@@ -822,6 +838,61 @@ export class BoardView {
   _positionPieceGroup(g, cx, cy, scale, opacity) {
     g.setAttribute('transform', `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${scale.toFixed(4)})`);
     g.setAttribute('opacity', String(opacity));
+  }
+
+  _positionPieceGroupXY(g, cx, cy, scaleX, scaleY, opacity) {
+    g.setAttribute(
+      'transform',
+      `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${scaleX.toFixed(4)} ${scaleY.toFixed(4)})`
+    );
+    g.setAttribute('opacity', String(opacity));
+  }
+
+  _animateRevealFlip(group, toPt, revealedPiece, onComplete) {
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const useEl = group.querySelector('use');
+    const revealedId = pieceSymbolId(this.theme.id, revealedPiece.side, revealedPiece.kind, 'live');
+
+    if (reduced) {
+      if (useEl) useEl.setAttribute('href', `#${revealedId}`);
+      this.animator.tween({
+        duration: 120,
+        easing: easeOutCubic,
+        onUpdate: (e) => {
+          this._positionPieceGroup(group, toPt.x, toPt.y, 1.0, lerp(0.3, 1.0, e));
+        },
+        onComplete,
+      });
+      return;
+    }
+
+    let swapped = false;
+    this.animator.tween({
+      duration: 240,
+      easing: (t) => t,
+      onUpdate: (_e, raw) => {
+        if (raw < 0.5) {
+          const p = raw * 2;
+          const sx = Math.max(0.04, 1 - p);
+          const lift = -6 * Math.sin(p * Math.PI * 0.5);
+          this._positionPieceGroupXY(group, toPt.x, toPt.y + lift, sx, lerp(1.05, 1.08, p), 1);
+        } else {
+          if (!swapped) {
+            swapped = true;
+            if (useEl) useEl.setAttribute('href', `#${revealedId}`);
+          }
+          const p = (raw - 0.5) * 2;
+          const sx = Math.max(0.04, p);
+          const bounce = p > 0.75 ? 1 + 0.05 * Math.sin(((p - 0.75) / 0.25) * Math.PI) : lerp(1.08, 1.0, p);
+          const lift = -6 * (1 - p);
+          this._positionPieceGroupXY(group, toPt.x, toPt.y + lift, sx * bounce, bounce, 1);
+        }
+      },
+      onComplete,
+    });
   }
 
   _canSelect(pos) {
@@ -859,9 +930,9 @@ export class BoardView {
     });
   }
 
-  _performMove(from, to, startPt = null, isDrop = false) {
+  _performMove(from, to, startPt = null, isDrop = false, externalReveal = null) {
     const captured = this.board.at(to);
-    const move = this.board.applyMove(from, to);
+    const move = this.board.applyMove(from, to, externalReveal);
     if (!move) return;
 
     this.selected = null;
@@ -889,7 +960,10 @@ export class BoardView {
     this.renderPieces();
     this._renderOverlays();
 
-    const mover = this._createPieceGroup(move.piece, fromPt.x, fromPt.y, 1.07, 1, true);
+    const startPieceVisual = move.wasCovered
+      ? { side: move.side, kind: move.fakeKind, covered: true }
+      : move.piece;
+    const mover = this._createPieceGroup(startPieceVisual, fromPt.x, fromPt.y, 1.07, 1, true);
     this.layerAnim.appendChild(mover);
 
     // Notify state immediately so move list & status update synchronously
@@ -906,6 +980,15 @@ export class BoardView {
       },
       onComplete: () => {
         this.onMoveLanded(move);
+        if (move.wasCovered && move.reveal) {
+          this._animateRevealFlip(mover, toPt, move.piece, () => {
+            mover.remove();
+            this.hiddenKeys.delete(destKey);
+            this.renderPieces();
+            this._renderOverlays();
+          });
+          return;
+        }
         this.animator.tween({
           duration: 70,
           easing: easeOutCubic,
@@ -940,7 +1023,13 @@ export class BoardView {
         this.onSelectPiece(pos);
         this._selectPos(pos);
       } else {
-        this._performMove(this.selected, pos, null, false);
+        if (this.onInterceptMove) {
+          const fromPos = this.selected;
+          this.clearSelection();
+          this.onInterceptMove(fromPos, pos);
+        } else {
+          this._performMove(this.selected, pos, null, false);
+        }
         return;
       }
     }
@@ -1028,7 +1117,13 @@ export class BoardView {
 
     if (target && !samePos(target, drag.from) && this._isLegalTarget(target)) {
       this.hiddenKeys.delete(originKey);
-      this._performMove(drag.from, target, pt, true);
+      if (this.onInterceptMove) {
+        this.clearSelection();
+        this.renderPieces();
+        this.onInterceptMove(drag.from, target);
+      } else {
+        this._performMove(drag.from, target, pt, true);
+      }
     } else {
       // Illegal drop: spring back (160 ms) + tiny horizontal shake (2 cycles, 4 px, 140 ms)
       const droppedElsewhere = !target || !samePos(target, drag.from);
@@ -1173,6 +1268,8 @@ export class BoardView {
     }
 
     if (this.selected && this.legalTargets.length > 0 && this.legalTargets.length < 20) {
+      const selPiece = this.board.at(this.selected);
+      const isCoveredSel = Boolean(selPiece && selPiece.covered);
       for (const t of this.legalTargets) {
         const tp = this.logicalToBoard(t);
         const occupant = this.board.at(t);
@@ -1190,13 +1287,27 @@ export class BoardView {
               class: 'legal-capture-ring',
             })
           );
+          if (isCoveredSel) {
+            const q = svgEl('text', {
+              x: tp.x + 34,
+              y: tp.y - 34,
+              'text-anchor': 'middle',
+              'dominant-baseline': 'central',
+              fill: '#F2C14E',
+              'font-size': 20,
+              'font-weight': 700,
+              class: 'legal-reveal-q',
+            });
+            q.textContent = '?';
+            this.layerSelection.appendChild(q);
+          }
         } else {
           // Empty target: gold dot (r = 0.14 cell = 14, #F2C14E at 0.9 opacity, faint dark outline)
           this.layerSelection.appendChild(
             svgEl('circle', {
               cx: tp.x,
               cy: tp.y,
-              r: 14,
+              r: isCoveredSel ? 17 : 14,
               fill: '#F2C14E',
               'fill-opacity': 0.9,
               stroke: '#2A1A0E',
@@ -1205,6 +1316,20 @@ export class BoardView {
               class: 'legal-move-dot',
             })
           );
+          if (isCoveredSel) {
+            const q = svgEl('text', {
+              x: tp.x,
+              y: tp.y + 1,
+              'text-anchor': 'middle',
+              'dominant-baseline': 'central',
+              fill: '#2A1A0E',
+              'font-size': 20,
+              'font-weight': 800,
+              class: 'legal-reveal-q',
+            });
+            q.textContent = '?';
+            this.layerSelection.appendChild(q);
+          }
         }
       }
     }

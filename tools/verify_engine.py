@@ -238,7 +238,7 @@ def main():
             ))
 
             # 3 & 4: 50/50 random legality + 3 mate-in-1 puzzles + 4-game Pikafish vs JS strength match
-            page.goto(f"{BASE}/?mode=pvp", wait_until="networkidle")
+            page.goto(f"{BASE}/#/play/cotuong/local", wait_until="networkidle")
             eval_report = page.evaluate("""async () => {
                 const { Board } = await import('./js/model/board.js');
                 const { START_FEN } = await import('./js/model/fen.js');
@@ -392,7 +392,7 @@ def main():
                 assert mg["winnerEngine"] != "JS", f"Unexpected Pikafish loss in game {mg['game']}"
 
             # 6. Live Playwright UI vs Pikafish (Red + Black + screenshots + rAF + undo + newgame)
-            page.goto(f"{BASE}/?mode=ai&side=red&level=cao-thu&engine=pikafish", wait_until="networkidle")
+            page.goto(f"{BASE}/#/play/cotuong/ai?side=red&level=cao-thu&engine=pikafish", wait_until="networkidle")
             page.evaluate("() => document.fonts.ready")
             page.wait_for_timeout(150)
 

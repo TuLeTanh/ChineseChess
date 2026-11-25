@@ -261,3 +261,19 @@
   - `tools/verify_engine.py`: **PASS** (WDL sum=1000, 10-ply `/api/engine/analyze` = 11 positions, 409 busy, 0 ms stop, 0 orphans).
   - `tools/verify_analysis.py`: **PASS** (Pikafish blunder detection at ply 9, JS fallback, cancel/"Chưa đầy đủ", reload persistence + library badge, integrity rule, export checkbox, mobile `390x844` & `inapp_390x700`, 4× CPU scrub + 20 round trips, 0 console errors).
   - **Self-Eval Round 1**: **R1=5, R2=5, R3=5, R4=5, R5=5** (all >= 4).
+
+## Fix Pass on `feat/analysis` (Items 1–8)
+
+1. **Arrow/position alignment (`3eeb2c3`)**: Added `selectAnalysisPositionData` in `js/analysis/math.js` and `selectMove()` in `js/ui/analysisView.js`. Selecting a `mistake`/`blunder`/`missed_mate` (mistakes list, move chip, or graph dot) displays `ply - 1` (before the move) with blue best + red played arrows; normal stepping displays best/2nd arrows for the viewed position. Verified for every ply `0..N`.
+2. **Arrow overlap (`2cbffbe`)**: Added `applyArrowOverlapOffsets` in `js/analysis/math.js` and perpendicular `offset` (±10 SVG units ≈ ±6 CSS px) + `stroke-dasharray` for played arrows in `js/ui/boardView.js`.
+3. **Best-move card consistency (`6e88036`)**: `_renderBestCard` now renders engine lines strictly for `data.boardPly` (matching the blue arrow) plus an explicit `"Nước đã đi: <move> (<score>)"` row (`[data-testid="an-played-row"]`).
+4. **Archive/replay UI cleanup (`86340d4`)**: Scoped `.is-replay-shell` layout in `css/style.css` + `js/screens/replayScreen.js` — high-contrast unclipped `"Đang xem ván đã lưu"` pill, `.review-banner` docked above the board (never covering file labels `1..9`), `"Ván mới"` and `"Đi lại"` hidden in archive/replay mode.
+5. **Live-game integrity loophole (`71a3b63`)**: Disabled all 5 export/copy/save buttons (`save`, `fen`, `link`, `json`, `pgn`) with tooltip `"Có sau khi kết thúc ván"` in live local/AI/online games (unlocked after game over) and blocked analysis deep links to `unfinished` games.
+6. **Analysis robustness `a..h` (`45d25fb`)**: Added SSE `onerror` partial recovery + `"Thử lại"` button, terminal checkmate `mate: 0` handling (no false `missed_mate` on delivered checkmate), non-blocking `/api/engine/info` during active analysis, `409` friendly busy message, cancel on sheet close & route leave (`/api/engine/stop`, 0 leaks), long-game estimate & `>150 plies` / `>5 min` range selector (`fromPly..toPly`), touch JS battery hint, custom FEN support, and full `(startFen, moves, preset, engineKind)` cache keys.
+7. **Dialog crawler + WebKit audit (`2b7d38b`)**: Expanded `tools/verify_dialogs.py` to 14 unique dialogs (Chromium: 9 sizes, 129 checks, 0 failures; WebKit: 3 sizes `390x844`, `844x390`, `820x1180`, 57 checks, 0 failures).
+8. **Honest visual rubric (1180×780, 390×844, 844×390)**:
+   - **R1 Analysis Accuracy & Arrow Alignment**: **5 / 5** (every arrow starts on an occupied `sideToMove` piece; collinear arrows offset & dashed; best-move card matches board position).
+   - **R2 Archive/Replay Layout & Contrast**: **4 / 5** (pill contrast, banner above file labels, hidden new/undo all fixed; minor vertical scroll tightness in `1180×780` & `844×390` side panel when analysis + player cards + move list stack).
+   - **R3 Eval Bar & Graph Readability**: **4 / 5** (clean horizontal/vertical bar & graph; `+0.3` label on 18 px vertical bar is slightly tight horizontally).
+   - **R4 Mobile & Touch Ergonomics**: **4 / 5** (zero overflow, 44 px targets, WebKit 57/57 pass; half-open sheet on `390×844` requires a small scroll to reach `"Sai lầm lớn nhất"`).
+   - **R5 Integrity & Robustness**: **5 / 5** (all live export/copy/save locked, unfinished deep links blocked, 409/cancel/checkmate/custom-FEN/leaks all verified green).

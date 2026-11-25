@@ -11,6 +11,8 @@ import { buildPieceSymbolsDefs, pieceSymbolId } from '../render/pieceSvg.js';
 import { LobbyBackground } from '../ui/lobbyBackground.js';
 import { renderEloBar } from '../ui/eloBar.js';
 import { openSettingsModal } from '../ui/settingsModal.js';
+import { openImportModal, formatRelativeDateVi } from '../ui/saveModals.js';
+import { variantToRouteGame } from '../storage/gameRecord.js';
 import { leakTracker } from '../app/router.js';
 
 const APP_VERSION = 'v1.0.0';
@@ -78,6 +80,9 @@ export function createLobbyScreen(ctx) {
                 <span class="online-dot"></span>
                 <span class="online-pill-text">Ngoại tuyến</span>
               </div>
+              <button type="button" class="pill-btn lobby-lib-btn" data-act="library" title="Thư viện ván đã lưu">
+                <span aria-hidden="true">📚</span> <span>Thư viện</span>
+              </button>
               <button type="button" class="guest-chip" data-act="profile" title="Đổi tên hiển thị">
                 <span class="guest-avatar">${escapeHtml((s.nickname || 'K').trim().charAt(0).toUpperCase())}</span>
                 <span class="guest-name">${escapeHtml(s.nickname)}</span>
@@ -128,7 +133,12 @@ export function createLobbyScreen(ctx) {
                 </div>
               </button>
             </div>
+            <div class="resume-strip" hidden></div>
           </main>
+
+          <div class="lobby-drop-overlay" hidden>
+            <div class="lobby-drop-box">Thả file để nhập ván (.xqgame.json, .pgn, .txt)</div>
+          </div>
 
           <footer class="lobby-footer">
             <span class="lobby-version">${APP_VERSION}</span>
@@ -155,6 +165,77 @@ export function createLobbyScreen(ctx) {
           : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
       };
       syncMuteIcon();
+
+      container.querySelector('[data-act="library"]').addEventListener('click', () => {
+        ctx.router.navigate('/library');
+      });
+
+      // Resume strip (autosave in progress)
+      const resumeStrip = container.querySelector('.resume-strip');
+      const loadResumeStrip = async () => {
+        if (destroyed || !ctx.gameStore) return;
+        const saves = await ctx.gameStore.listAutosaves();
+        if (destroyed) return;
+        if (!saves.length) {
+          resumeStrip.hidden = true;
+          resumeStrip.innerHTML = '';
+          return;
+        }
+        const top = saves[0];
+        const vLabel = top.record.variant === 'jieqi' ? 'Cờ Úp' : 'Cờ Tướng';
+        const mLabel = top.record.mode === 'ai' ? 'Đấu máy' : 'Hai người';
+        const plies = top.record.moves.length;
+        const ago = formatRelativeDateVi(top.savedAt);
+        resumeStrip.hidden = false;
+        resumeStrip.innerHTML = `
+          <span class="resume-text"></span>
+          <div class="resume-actions">
+            <button type="button" class="mini-seg-btn is-selected" data-res="go">Tiếp tục</button>
+            <button type="button" class="mini-seg-btn" data-res="discard">Bỏ ván</button>
+          </div>
+        `;
+        resumeStrip.querySelector('.resume-text').textContent =
+          `Tiếp tục ván đang chơi · ${vLabel} · ${mLabel} · ${plies} nước · ${ago}`;
+        resumeStrip.querySelector('[data-res="go"]').addEventListener('click', () => {
+          ctx.pendingResume = top;
+          const rGame = variantToRouteGame(top.record.variant);
+          const rMode = top.record.mode === 'ai' ? 'ai' : 'local';
+          ctx.router.navigate(`/play/${rGame}/${rMode}`, { resume: '1' });
+        });
+        resumeStrip.querySelector('[data-res="discard"]').addEventListener('click', async () => {
+          await ctx.gameStore.clearAutosave(top.slot);
+          loadResumeStrip();
+        });
+      };
+      loadResumeStrip();
+
+      // Drag-and-drop file import onto lobby
+      const dropOverlay = container.querySelector('.lobby-drop-overlay');
+      let dragDepth = 0;
+      container.addEventListener('dragenter', (ev) => {
+        if (ev.dataTransfer && Array.from(ev.dataTransfer.types || []).includes('Files')) {
+          ev.preventDefault();
+          dragDepth++;
+          dropOverlay.hidden = false;
+        }
+      });
+      container.addEventListener('dragover', (ev) => {
+        if (ev.dataTransfer && Array.from(ev.dataTransfer.types || []).includes('Files')) {
+          ev.preventDefault();
+        }
+      });
+      container.addEventListener('dragleave', () => {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) dropOverlay.hidden = true;
+      });
+      container.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        dragDepth = 0;
+        dropOverlay.hidden = true;
+        if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length > 0) {
+          openImportModal(ctx, { initialFiles: ev.dataTransfer.files });
+        }
+      });
 
       // Online status pill probe
       const pill = container.querySelector('.online-pill');

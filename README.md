@@ -31,6 +31,14 @@ Game Cờ Tướng chạy ngay trên trình duyệt: bàn cờ và quân cờ v�
 - **Cờ Úp (Jieqi)**: đầy đủ luật Cờ Úp ([`docs/RULES_JIEQI.md`](docs/RULES_JIEQI.md)) — 15 quân úp mỗi bên đi theo vị trí giả rồi lật khi di chuyển, Sĩ đi chéo toàn bàn, Tượng qua sông (vẫn cản mắt), bảng **Quân úp còn lại**, hiệu ứng lật quân, âm thanh lật theo ngũ cung, và máy **PIMC** chạy trong Web Worker (không bao giờ nhìn trộm quân úp).
 - **Đấu Online (Cờ Tướng & Cờ Úp)**: máy chủ Node + `ws` uy quyền ([`docs/PROTOCOL.md`](docs/PROTOCOL.md), [`docs/DEPLOY.md`](docs/DEPLOY.md)) hỗ trợ ghép trận nhanh, phòng riêng mã 6 ký tự + link mời `#/join/<CODE>`, đồng hồ đếm ngược, tự kết nối lại khi tải lại trang, xin hòa / đầu hàng / tái đấu đổi màu.
 
+**Lưu, xuất và nhập ván**
+- **Tự động lưu & Tiếp tục**: ván nội bộ và đấu máy tự động lưu vào IndexedDB (`xq_games_v1`), hiện thanh **Tiếp tục ván đang chơi** ngoài sảnh khi tải lại trang; ván kết thúc (kể cả đấu online) tự động lưu vào **Thư viện ván** (`#/library`, tối đa 200 ván, lọc theo biến thể/kết quả, tìm kiếm, ghi chú, hình thu nhỏ SVG vẽ lười).
+- **Xuất & Nhập đa định dạng** ([`docs/FORMATS.md`](docs/FORMATS.md)): hỗ trợ file `.xqgame.json` (kể cả gói sao lưu nhiều ván), văn bản dạng PGN (`.pgn` / `.txt` có ký hiệu lật quân `=N` và `x=R` cho Cờ Úp), sao chép FEN thế cờ hiện tại, kéo thả file trực tiếp vào sảnh, và **liên kết chia sẻ** nén `deflate-raw` (`#/replay?g=...`, giới hạn 6000 ký tự). Mọi file xuất đều chỉ chứa thông tin công khai (không bao giờ rò rỉ quân còn úp hay `guestId`).
+
+| | | |
+|---|---|---|
+| ![Thư viện ván](docs/screenshots/library.png) | ![Nhập ván cờ](docs/screenshots/import_dialog.png) | ![Xem lại ván đã lưu](docs/screenshots/replay_banner.png) |
+
 **Giao diện**
 - Bàn cờ và 14 loại quân vẽ hoàn toàn bằng SVG (vân gỗ bằng `feTurbulence`, đổ bóng, vát cạnh, chữ Hán khắc nổi), nét sắc ở mọi độ phân giải (đã kiểm tra DPR 1, 1.5, 2).
 - Hai theme: **Gỗ Lim** (ván gỗ ấm, quân ngà) và **Ngọc Bích** (bàn xanh đá, quân đỏ sơn mài chữ vàng), chuyển theme có hiệu ứng mờ dần.
@@ -145,6 +153,14 @@ Nghe thử các giọng tại `/?voices`, nghe toàn bộ âm thanh tại `/?sou
 - **Cờ Úp (Jieqi)**: đầy đủ luật Cờ Úp ([`docs/RULES_JIEQI.md`](docs/RULES_JIEQI.md)) — 15 quân úp mỗi bên đi theo vị trí giả rồi lật khi di chuyển, Sĩ đi chéo toàn bàn, Tượng qua sông (vẫn cản mắt), bảng **Quân úp còn lại**, hiệu ứng lật quân, âm thanh lật theo ngũ cung, và máy **PIMC** chạy trong Web Worker (không bao giờ nhìn trộm quân úp).
 - **Đấu Online (Cờ Tướng & Cờ Úp)**: máy chủ Node + `ws` uy quyền ([`docs/PROTOCOL.md`](docs/PROTOCOL.md), [`docs/DEPLOY.md`](docs/DEPLOY.md)) hỗ trợ ghép trận nhanh, phòng riêng mã 6 ký tự + link mời `#/join/<CODE>`, đồng hồ đếm ngược, tự kết nối lại khi tải lại trang, xin hòa / đầu hàng / tái đấu đổi màu.
 
+**Lưu, xuất và nhập ván**
+- **Tự động lưu & Tiếp tục**: ván nội bộ và đấu máy tự động lưu vào IndexedDB (`xq_games_v1`), hiện thanh **Tiếp tục ván đang chơi** ngoài sảnh khi tải lại trang; ván kết thúc (kể cả đấu online) tự động lưu vào **Thư viện ván** (`#/library`, tối đa 200 ván, lọc theo biến thể/kết quả, tìm kiếm, ghi chú, hình thu nhỏ SVG vẽ lười).
+- **Xuất & Nhập đa định dạng** ([`docs/FORMATS.md`](docs/FORMATS.md)): hỗ trợ file `.xqgame.json` (kể cả gói sao lưu nhiều ván), văn bản dạng PGN (`.pgn` / `.txt` có ký hiệu lật quân `=N` và `x=R` cho Cờ Úp), sao chép FEN thế cờ hiện tại, kéo thả file trực tiếp vào sảnh, và **liên kết chia sẻ** nén `deflate-raw` (`#/replay?g=...`, giới hạn 6000 ký tự). Mọi file xuất đều chỉ chứa thông tin công khai (không bao giờ rò rỉ quân còn úp hay `guestId`).
+
+| | | |
+|---|---|---|
+| ![Thư viện ván](docs/screenshots/library.png) | ![Nhập ván cờ](docs/screenshots/import_dialog.png) | ![Xem lại ván đã lưu](docs/screenshots/replay_banner.png) |
+
 **Giao diện** (đổi giữa Gỗ Lim và Ngọc Bích).
 - **Luyện tập**: bật **Đi tự do (luyện tập)** (trong chế độ Hai người) để đặt quân tự do không kiểm tra luật.
 - **Âm thanh**: thanh loa ở cuối bảng phải để tắt/bật âm thanh, bật/tắt giọng hô và chỉnh âm lượng.
@@ -257,8 +273,7 @@ Yêu cầu cho các script kiểm thử trình duyệt (`tools/verify*.py`): cà
 ## Giới hạn đã biết
 
 - Chưa có luật xử lý **chiếu liên tục** (trường chiếu, trường tróc) hay đuổi quân liên tục. Hiện lặp thế 3 lần được xử hòa; Pikafish có luật lặp riêng nên có thể khác kết quả của game trong vài thế đặc biệt.
-- Chưa lưu ván: tải lại trang là mất ván (chỉ lưu cài đặt như chế độ chơi, bên cầm, cấp độ, engine, âm lượng, giọng nói).
-- Chưa tối ưu cho màn hình điện thoại nhỏ (bố cục `min-width: 960px`); xem chi tiết trong [`docs/AUDIT.md`](docs/AUDIT.md).
+- Chưa tối ưu cho màn hình điện thoại nhỏ ở màn chơi cờ (bố cục `min-width: 960px`; sảnh chờ và thư viện ván đã tối ưu xuống 360 px); xem chi tiết trong [`docs/AUDIT.md`](docs/AUDIT.md).
 - Âm thanh tổng hợp không thể giống hoàn toàn tiếng gỗ thật; có thể thay bằng file thu thật.
 - Trên bản clone mới chưa chạy `tools/gen_voice.py`, trình duyệt có thể ghi 1 dòng `404` trong Console khi kiểm tra `assets/voice/manifest.json` (game vẫn hoạt động bình thường).
 - Chế độ kéo thả quân trên màn hình cảm ứng chưa đặt `touch-action: none` nên có thể xung đột với thao tác cuộn trang (chạm-chạm vẫn đi quân bình thường).

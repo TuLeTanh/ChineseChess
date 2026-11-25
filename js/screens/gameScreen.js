@@ -12,7 +12,11 @@ import { PikafishClient } from '../ai/pikafishClient.js';
 import { GameController } from '../game/GameController.js';
 import { xiangqiVariant } from '../variants/xiangqi.js';
 import { jieqiVariant } from '../variants/jieqi.js';
+import { dealRemainingPool } from '../jieqi/rules.js';
+import { GameStatus } from '../rules.js';
 import { openSettingsModal } from '../ui/settingsModal.js';
+import { openExportModal, saveRecordWithPrunePrompt } from '../ui/saveModals.js';
+import { buildRecordFromBoard } from '../storage/gameRecord.js';
 import { OnlineGameBridge } from '../online/onlineGameController.js';
 import { leakTracker } from '../app/router.js';
 
@@ -23,6 +27,9 @@ export function createGameScreen(ctx) {
   let onlineBridge = null;
   let onKeyDown = null;
   let onBeforeUnload = null;
+  let onVisChange = null;
+  let onPageHide = null;
+  let autosaveTimer = null;
   let unsubSettings = null;
 
   return {
@@ -38,9 +45,83 @@ export function createGameScreen(ctx) {
       const playerSide = sideChoice === 'black' ? BLACK : RED;
 
       const aiLevel = q.level || urlParams.get('level') || settings.last.level || 'nghiep-du';
-      const initialFen = q.fen || urlParams.get('fen') || (variant.id === 'coup' ? '' : START_FEN);
+      const customStart = ctx.pendingCustomStart;
+      ctx.pendingCustomStart = null;
+      const resumeSnap = ctx.pendingResume;
+      ctx.pendingResume = null;
+      const initialFen =
+        (customStart && customStart.game === route.game ? customStart.fen : '') ||
+        q.fen ||
+        urlParams.get('fen') ||
+        (variant.id === 'coup' ? '' : START_FEN);
       const practiceMode = variant.supportsPracticeMode && q.free === '1';
       const autoFlipLocal = q.autoflip === '1';
+
+      const autosaveSlot =
+        mode === 'local' || mode === 'ai'
+          ? `${variant.id === 'coup' ? 'jieqi' : 'xiangqi'}:${mode}`
+          : null;
+
+      const buildCurrentRecord = (result = 'unfinished', reason = null, source = 'manual') => {
+        const sNow = ctx.settingsStore.get();
+        const myName = sNow.nickname || 'Bạn';
+        const aiName = `Máy (${controller.aiLevel})`;
+        const isAi = controller.mode === 'ai';
+        const redInfo =
+          isAi && controller.playerSide !== RED
+            ? { name: aiName, kind: 'engine', level: controller.aiLevel }
+            : { name: isAi ? myName : 'Đỏ', kind: 'human' };
+        const blackInfo =
+          isAi && controller.playerSide !== BLACK
+            ? { name: aiName, kind: 'engine', level: controller.aiLevel }
+            : { name: isAi ? myName : 'Đen', kind: 'human' };
+        return buildRecordFromBoard({
+          board: controller.board,
+          variant: variant.id === 'coup' ? 'jieqi' : 'xiangqi',
+          mode: controller.mode,
+          red: redInfo,
+          black: blackInfo,
+          result,
+          reason,
+          startFen: controller.gameStartFen || undefined,
+          source,
+        });
+      };
+
+      const flushAutosaveNow = () => {
+        if (!autosaveSlot || !controller || controller.disposed || !ctx.gameStore) return;
+        const sNow = ctx.settingsStore.get();
+        if (sNow.storage?.autosaveInProgress === false) return;
+        if (controller.board.history.length === 0 || controller.isGameOver()) return;
+        const snap = {
+          record: buildCurrentRecord('unfinished', null, 'autosave'),
+          secretLocal:
+            controller.board.isJieqi && controller.board._secret
+              ? Object.fromEntries(controller.board._secret.entries())
+              : undefined,
+          halfmoveClock: controller.board.halfmoveClock,
+          positionHistory: [...controller.board.positionHistory],
+          ai: { level: controller.aiLevel, engine: controller.engineType, side: controller.playerSide },
+          free: controller.practiceMode,
+          viewPly: null,
+        };
+        ctx.gameStore.putAutosave(autosaveSlot, snap);
+      };
+
+      const scheduleAutosave = () => {
+        if (!autosaveSlot) return;
+        if (autosaveTimer) {
+          window.clearTimeout(autosaveTimer);
+          autosaveTimer = null;
+          leakTracker.trackTimer(-1);
+        }
+        leakTracker.trackTimer(1);
+        autosaveTimer = window.setTimeout(() => {
+          autosaveTimer = null;
+          leakTracker.trackTimer(-1);
+          flushAutosaveNow();
+        }, 250);
+      };
 
       const aiClient = new AiClient();
       const pikafishClient = new PikafishClient();
@@ -71,7 +152,13 @@ export function createGameScreen(ctx) {
             <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="leave-title">
               <div class="modal-card">
                 <h3 id="leave-title">Rời ván cờ?</h3>
-                <p>${mode === 'online' ? 'Rời trận sẽ bị xử thua.' : 'Ván hiện tại sẽ mất.'}</p>
+                <p>${
+                  mode === 'online'
+                    ? 'Rời trận sẽ bị xử thua.'
+                    : ctx.settingsStore.get().storage?.autosaveInProgress !== false
+                      ? 'Ván sẽ được lưu để tiếp tục sau.'
+                      : 'Ván hiện tại sẽ mất.'
+                }</p>
                 <div class="modal-actions">
                   <button type="button" class="pill-btn modal-cancel">Ở lại</button>
                   <button type="button" class="pill-btn pill-btn-danger modal-leave-ok">Về sảnh</button>
@@ -84,6 +171,7 @@ export function createGameScreen(ctx) {
             modalRoot.innerHTML = '';
           });
           modalRoot.querySelector('.modal-leave-ok').addEventListener('click', () => {
+            flushAutosaveNow();
             modalRoot.hidden = true;
             modalRoot.innerHTML = '';
             ctx.router.navigate('/');
@@ -111,7 +199,45 @@ export function createGameScreen(ctx) {
         aiClient,
         pikafishClient,
         testMode: ctx.testMode,
+        onPersistHook: ({ event, status, isResign }) => {
+          if (!ctx.gameStore || mode === 'online') return;
+          if (event === 'reset') {
+            if (autosaveSlot) ctx.gameStore.clearAutosave(autosaveSlot);
+            return;
+          }
+          if (event === 'gameover') {
+            if (autosaveSlot) ctx.gameStore.clearAutosave(autosaveSlot);
+            if (ctx.settingsStore.get().storage?.saveFinishedGames !== false) {
+              let result = 'unfinished';
+              let reason = null;
+              if (isResign) {
+                result = controller.playerSide === RED ? 'black' : 'red';
+                reason = 'resign';
+              } else if (status === GameStatus.Checkmate) {
+                result = controller.board.sideToMove === RED ? 'black' : 'red';
+                reason = 'checkmate';
+              } else if (status === GameStatus.Stalemate) {
+                result = controller.board.sideToMove === RED ? 'black' : 'red';
+                reason = 'stalemate';
+              } else if (status === GameStatus.DrawRepetition) {
+                result = 'draw';
+                reason = 'repetition';
+              } else if (status === GameStatus.DrawNoCapture) {
+                result = 'draw';
+                reason = 'noCapture';
+              }
+              saveRecordWithPrunePrompt(ctx, buildCurrentRecord(result, reason, 'autosave'));
+            }
+            return;
+          }
+          if (event === 'move' || event === 'undo') {
+            scheduleAutosave();
+          }
+        },
       });
+      if (customStart && customStart.game === 'coup' && customStart.pool && controller.board.isJieqi) {
+        dealRemainingPool(controller.board, customStart.pool);
+      }
 
       boardView = new BoardView({
         container: stage,
@@ -217,6 +343,18 @@ export function createGameScreen(ctx) {
         },
         onHint: () => controller.handleHint(),
         onResign: () => controller.handleResign(),
+        onExportGame: () => {
+          const viewedFen = controller.board.snapshotAt(controller.viewPly).fen;
+          openExportModal(ctx, {
+            record: buildCurrentRecord(
+              controller.isGameOver() ? (controller.resigned ? (controller.playerSide === RED ? 'black' : 'red') : 'draw') : 'unfinished',
+              controller.resigned ? 'resign' : null,
+              'manual'
+            ),
+            currentFen: viewedFen,
+            allowSaveToLibrary: true,
+          });
+        },
         onReviewGameOver: () => {
           controller.cancelEndFx();
           controller.viewPly = controller.board.history.length;
@@ -245,6 +383,36 @@ export function createGameScreen(ctx) {
       };
 
       controller.attachViews(boardView, sidePanel);
+
+      // Add "Lưu / Xuất" button to side panel (in all live modes)
+      const exportRow = document.createElement('div');
+      exportRow.className = 'side-export-row';
+      exportRow.innerHTML = `<button type="button" class="pill-btn pill-btn-compact" data-action="save-export">💾 Lưu / Xuất</button>`;
+      exportRow.querySelector('button').addEventListener('click', () => {
+        const viewedFen = controller.board.snapshotAt(controller.viewPly).fen;
+        openExportModal(ctx, {
+          record: buildCurrentRecord('unfinished', null, 'manual'),
+          currentFen: viewedFen,
+          allowSaveToLibrary: mode !== 'online',
+        });
+      });
+      const audioBar = sidePanelEl.querySelector('.audio-bar');
+      if (audioBar) audioBar.parentNode.insertBefore(exportRow, audioBar);
+
+      if (resumeSnap) {
+        controller.restoreAutosave(resumeSnap);
+      } else if (autosaveSlot && q.resume === '1' && ctx.gameStore) {
+        const snap = await ctx.gameStore.getAutosave(autosaveSlot);
+        if (snap) controller.restoreAutosave(snap);
+      }
+
+      onVisChange = () => {
+        if (document.hidden) flushAutosaveNow();
+      };
+      onPageHide = () => flushAutosaveNow();
+      document.addEventListener('visibilitychange', onVisChange);
+      window.addEventListener('pagehide', onPageHide);
+      leakTracker.trackListener(2);
 
       if (mode === 'online') {
         onlineBridge = new OnlineGameBridge({
@@ -328,6 +496,21 @@ export function createGameScreen(ctx) {
     },
 
     unmount() {
+      if (autosaveTimer) {
+        window.clearTimeout(autosaveTimer);
+        autosaveTimer = null;
+        leakTracker.trackTimer(-1);
+      }
+      if (onVisChange) {
+        document.removeEventListener('visibilitychange', onVisChange);
+        onVisChange = null;
+        leakTracker.trackListener(-1);
+      }
+      if (onPageHide) {
+        window.removeEventListener('pagehide', onPageHide);
+        onPageHide = null;
+        leakTracker.trackListener(-1);
+      }
       if (unsubSettings) {
         unsubSettings();
         unsubSettings = null;

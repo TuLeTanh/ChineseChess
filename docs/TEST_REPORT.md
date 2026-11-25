@@ -86,7 +86,7 @@ Run with `TIME_SCALE = 0.4` (40% thinking time budget), 6 seeded games per pairi
 
 ## 5. Privacy & Repo Hygiene Scan
 
-- **Tracked file privacy scan** (`vớ vẩn`, `D:\`, `C:\Users`, `@gmail`, `password`, `api_key`, `BEGIN PRIVATE KEY`): **0 hits**.
+- **Tracked file privacy scan** (local paths, personal emails, passwords, API keys, private keys): **0 hits**.
 - **Tracked files > 1 MB**: **0 files**.
 - **Forbidden tracked paths** (`engine/dist/`, `*.mp3`, `preview/`, `logs/`, `node_modules/`): **0 files**.
 - **Git commit author identity** (`git log --format="%h %an <%ae> %s" -n 10`):

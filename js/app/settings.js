@@ -58,7 +58,7 @@ export function isValidServerUrl(url) {
 
 export function createDefaultSettings() {
   return {
-    v: 1,
+    v: 2,
     nickname: defaultNickname(),
     guestId: generateGuestId(),
     theme: 'go-lim',
@@ -71,6 +71,10 @@ export function createDefaultSettings() {
     jieqi: {
       showPool: true,
       confirmResign: true,
+    },
+    storage: {
+      saveFinishedGames: true,
+      autosaveInProgress: true,
     },
     online: {
       serverUrl: '',
@@ -125,7 +129,7 @@ function normalizeSettings(raw) {
   if (!raw || typeof raw !== 'object') return def;
 
   const out = {
-    v: 1,
+    v: 2,
     nickname: sanitizeNickname(raw.nickname, def.nickname),
     guestId:
       typeof raw.guestId === 'string' && /^[0-9a-f-]{36}$/i.test(raw.guestId)
@@ -144,6 +148,12 @@ function normalizeSettings(raw) {
     jieqi: {
       showPool: typeof raw.jieqi?.showPool === 'boolean' ? raw.jieqi.showPool : true,
       confirmResign: typeof raw.jieqi?.confirmResign === 'boolean' ? raw.jieqi.confirmResign : true,
+    },
+    storage: {
+      saveFinishedGames:
+        typeof raw.storage?.saveFinishedGames === 'boolean' ? raw.storage.saveFinishedGames : true,
+      autosaveInProgress:
+        typeof raw.storage?.autosaveInProgress === 'boolean' ? raw.storage.autosaveInProgress : true,
     },
     online: {
       serverUrl: isValidServerUrl(raw.online?.serverUrl) ? String(raw.online.serverUrl).trim() : '',

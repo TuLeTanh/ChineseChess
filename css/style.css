@@ -1133,20 +1133,28 @@ body.mode-preview .board-stage {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  flex-wrap: wrap;
+  gap: 3px;
   width: 100%;
   min-width: 0;
-  padding: 3px 6px;
+  padding: 3px 4px;
   border-radius: 6px;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.035);
   color: var(--text-primary);
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: transform 110ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.move-chip .move-text {
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .move-chip:hover {
@@ -2533,16 +2541,17 @@ body.mode-effects .board-stage {
 }
 
 .move-reveal-badge {
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 1px 4px;
-  border-radius: 4px;
+  letter-spacing: 0.02em;
+  padding: 1px 3px;
+  border-radius: 3px;
   background: rgba(217, 164, 65, 0.22);
   color: var(--accent-gold, #F2C14E);
-  margin-left: 3px;
-  line-height: 1.1;
+  margin-left: 1px;
+  line-height: 1.05;
+  flex-shrink: 0;
 }
 
 .jieqi-pool-panel {
@@ -2749,7 +2758,7 @@ body.mode-effects .board-stage {
 
 .online-disconnect-banner {
   position: absolute;
-  top: 14px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
@@ -2761,6 +2770,10 @@ body.mode-effects .board-stage {
   color: #FFF4EC;
   border: 1px solid rgba(255, 190, 160, 0.45);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.board-stage.has-disconnect-banner .board-toast {
+  top: 56px;
 }
 
 .online-draw-toast {
@@ -2798,8 +2811,10 @@ body.mode-effects .board-stage {
 
 .online-reconnect-overlay[hidden],
 .online-disconnect-banner[hidden],
-.online-draw-toast[hidden] {
-  display: none;
+.online-draw-toast[hidden],
+.mode-bar[hidden],
+.mode-bar .segmented[hidden] {
+  display: none !important;
 }
 
 .online-reconnect-box {
@@ -2815,5 +2830,299 @@ body.mode-effects .board-stage {
   .search-ring,
   .player-clock.is-low-time {
     animation: none;
+  }
+}
+
+
+/* =========================================================
+   Upgrade Pass 1: Library, Resume Strip, Import/Export & Replay
+   ========================================================= */
+.storage-status-banner {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  background: rgba(34, 24, 16, 0.96);
+  color: var(--accent-gold, #F2C14E);
+  border: 1px solid rgba(217, 164, 65, 0.45);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  max-width: 92vw;
+  text-align: center;
+}
+
+.storage-status-banner[hidden],
+.resume-strip[hidden],
+.lobby-drop-overlay[hidden],
+.lib-pager[hidden],
+.import-summary[hidden],
+.import-err-list[hidden] {
+  display: none !important;
+}
+
+.resume-strip {
+  margin-top: 16px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(24, 18, 14, 0.78);
+  border: 1px solid rgba(217, 164, 65, 0.36);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 760px;
+  width: 100%;
+}
+
+.resume-text {
+  font-size: 13px;
+  color: var(--text-primary, #F4EBDC);
+}
+
+.resume-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.lobby-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(10, 8, 6, 0.78);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.lobby-drop-box {
+  padding: 28px 36px;
+  border-radius: 16px;
+  border: 2px dashed var(--accent-gold, #E6B85C);
+  background: rgba(28, 20, 14, 0.92);
+  color: var(--text-primary, #F4EBDC);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.library-content {
+  max-width: 980px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.lib-top-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lib-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.lib-toolbar .lib-search {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.lib-list-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+}
+
+.lib-item {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(24, 18, 14, 0.78);
+  border: 1px solid rgba(217, 164, 65, 0.22);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.lib-item:hover,
+.lib-item:focus-visible {
+  border-color: var(--accent-gold, #E6B85C);
+  background: rgba(34, 24, 18, 0.88);
+  outline: none;
+}
+
+.lib-thumb {
+  width: 88px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lib-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lib-variant-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(217, 164, 65, 0.16);
+  color: var(--accent-gold, #E6B85C);
+}
+
+.lib-variant-badge.is-jieqi {
+  background: rgba(192, 57, 43, 0.24);
+  color: #F5B7B1;
+}
+
+.lib-players {
+  font-size: 14px;
+  color: var(--text-primary, #F4EBDC);
+}
+
+.lib-item-meta {
+  font-size: 12px;
+  color: var(--text-muted, #B8A994);
+  margin-top: 4px;
+}
+
+.lib-item-note {
+  font-size: 12px;
+  color: var(--text-primary, #E8DCC8);
+  opacity: 0.88;
+  margin-top: 4px;
+  word-break: break-word;
+}
+
+.lib-item-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lib-empty {
+  text-align: center;
+  padding: 36px 20px;
+  border-radius: 14px;
+  background: rgba(24, 18, 14, 0.72);
+  border: 1px dashed rgba(217, 164, 65, 0.3);
+}
+
+.lib-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 0 20px;
+}
+
+.export-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.set-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(217, 164, 65, 0.28);
+  color: var(--text-primary, #F4EBDC);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.import-summary {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.import-summary.is-ok {
+  color: #7DCEA0;
+}
+
+.import-summary.has-err {
+  color: #F5B7B1;
+}
+
+.import-err-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #F5B7B1;
+}
+
+.replay-mode-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(217, 164, 65, 0.18);
+  color: var(--accent-gold, #F2C14E);
+  border: 1px solid rgba(217, 164, 65, 0.4);
+}
+
+.archive-actions-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.archive-result-pill {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(217, 164, 65, 0.12);
+  color: var(--accent-gold, #F2C14E);
+}
+
+.archive-btns-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.archive-btns-row > button {
+  flex: 1 1 auto;
+}
+
+.side-export-row {
+  display: flex;
+}
+
+.side-export-row > button {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .lib-item {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+  .lib-item-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
 }

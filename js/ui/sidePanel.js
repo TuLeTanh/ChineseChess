@@ -280,6 +280,7 @@ export class SidePanel {
           <p class="gameover-stats">${statsText}</p>
           <div class="modal-actions">
             <button type="button" class="pill-btn modal-review">Xem lại bàn cờ</button>
+            ${this.callbacks.onExportGame ? '<button type="button" class="pill-btn modal-export">Xuất</button>' : ''}
             <button type="button" class="pill-btn pill-btn-gold modal-new-game">Ván mới</button>
           </div>
         </div>
@@ -290,6 +291,13 @@ export class SidePanel {
       this.closeModal();
       if (this.callbacks.onReviewGameOver) this.callbacks.onReviewGameOver();
     });
+    const expBtn = this.modalRoot.querySelector('.modal-export');
+    if (expBtn && this.callbacks.onExportGame) {
+      expBtn.addEventListener('click', () => {
+        this.closeModal();
+        this.callbacks.onExportGame();
+      });
+    }
     this.modalRoot.querySelector('.modal-new-game').addEventListener('click', () => {
       this.closeModal();
       this.callbacks.onNewGame();
@@ -361,6 +369,8 @@ export class SidePanel {
   _syncAiCardsAndButtons(disableAiActions = false) {
     const vsAi = this.mode === 'ai';
     const pfAvail = !this.isJieqi && Boolean(this.pikafishInfo && this.pikafishInfo.available);
+    if (this.modeBarEl) this.modeBarEl.hidden = !vsAi;
+    if (this.modeSegmentedEl) this.modeSegmentedEl.hidden = true;
     this.aiConfigRow.hidden = !vsAi;
     this.engineRow.hidden = !vsAi || !pfAvail || this.isJieqi;
     this.engineHint.hidden = !vsAi || pfAvail || this.isJieqi;
@@ -549,6 +559,8 @@ export class SidePanel {
 
     this.variantHeaderEl = this.container.querySelector('.variant-header-pill');
     this.poolPanelEl = this.container.querySelector('.jieqi-pool-panel');
+    this.modeBarEl = this.container.querySelector('.mode-bar');
+    this.modeSegmentedEl = this.container.querySelector('.mode-bar .segmented');
     this.modePvpBtn = this.container.querySelector('[data-mode="pvp"]');
     this.modeAiBtn = this.container.querySelector('[data-mode="ai"]');
     this.aiConfigRow = this.container.querySelector('.ai-config-row');

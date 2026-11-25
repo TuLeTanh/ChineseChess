@@ -198,3 +198,10 @@
 - Added `tests/online/gaps.test.js` (7/7), `tools/verify_security.py`, `tools/verify_explore.py` (seeded monkey test + full UI/route/settings/online checks), and `tools/jieqi_strength.js`.
 - Fixed 4 bugs (1 commit each): `fad3c3f` (CSP `frame-ancestors 'none'` + `X-Frame-Options: DENY`), `514331b` (`.ttf` `font/ttf` MIME type), `891af9e` (read top-level `settings.nickname` in online sessions), `70af926` (prevent side-panel / move-list clipping at 780 px viewport in Cờ Úp).
 - Wrote full QA report in `docs/TEST_REPORT.md` including Cờ Úp AI strength table (5-1-0, 5-0-1, 4-2-0), security headers, visual review, and privacy scan (0 hits).
+
+
+## Upgrade Pass 1 — Cleanups + Save / Export / Import (`feat/save-export`)
+- **Phase 0 Cleanups**: hid redundant PvP/AI segmented mode toggle on game screen (`3f5d38b`), prevented Cờ Úp move-chip ICCS truncation (`b381784`), stacked `.board-toast` below `.online-disconnect-banner` (`b281092`), upgraded `verify_lobby.py` rAF assertion to p95/2%/250ms (`4458ae9`), and added adaptive 32-node clock-check granularity for low Jieqi budgets (`13117cf`, bringing `tap-su` max/budget from `1.92x` to `1.14x`).
+- **Phase 1 Pure Formats (`6543fc8`)**: `js/storage/gameRecord.js`, `js/storage/formats.js` (JSON, PGN-like, FEN, deflate-raw base64url share links with 256 KB zip-bomb cap), `js/storage/validate.js` (strict full-rules replay & prototype-pollution guard), `dealRemainingPool` in `js/jieqi/rules.js`, `docs/FORMATS.md`, `tests/storage/formats.test.js` (5/5).
+- **Phase 2 Storage Layer (`be39a89`)**: IndexedDB `GameStore` (`js/storage/gameStore.js`) with in-memory fallback, quota error handling, 200-game prune prompt, autosave snapshots, settings schema v2 (`js/app/settings.js`), and `tests/storage/store.test.js` (3/3).
+- **Phase 3 & 4 UI, E2E & Docs**: Library (`#/library`), Archive/Share Replay (`#/play/<game>/review`, `#/replay?g=...`), Lobby Resume strip & drag-drop import, Export/Import modals, Settings > Dữ liệu controls, online auto-save, `tools/verify_saves.py` (a–j all PASS, `errs=0 warns=0`), and 3 curated screenshots in `docs/screenshots/`.

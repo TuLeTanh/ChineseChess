@@ -214,6 +214,9 @@ def main():
             page.goto(f"{base}#/play/cotuong/ai?side=red&level=tap-su", wait_until="networkidle")
             page.wait_for_selector("svg.board-svg", timeout=6000)
             page.wait_for_timeout(200)
+            # 0.1 regression: Hai người | Đấu máy segmented selector must be hidden on game screen
+            assert not page.locator('[data-mode="pvp"]').is_visible(), "pvp mode toggle must be hidden on game screen"
+            assert not page.locator('[data-mode="ai"]').is_visible(), "ai mode toggle must be hidden on game screen"
             # Play h2e2 (7,7)->(4,7)
             click_square(page, 7, 7)
             page.wait_for_timeout(100)

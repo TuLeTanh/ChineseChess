@@ -165,11 +165,12 @@ export function searchJieqiBestMove(publicFen, opts = {}) {
     if (Date.now() - startTs >= maxTimeMs && w > 0) break;
     const world = sampleWorld(publicFen, seed + w * 997);
     const worldDeadline = Date.now() + perWorldBudget;
+    const checkMask = maxTimeMs < 300 ? 31 : 255;
     let aborted = false;
 
     const alphaBeta = (depth, alpha, beta, ply) => {
       totalNodes++;
-      if ((totalNodes & 255) === 0 && Date.now() >= worldDeadline) {
+      if ((totalNodes & checkMask) === 0 && Date.now() >= worldDeadline) {
         aborted = true;
         return 0;
       }

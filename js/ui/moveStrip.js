@@ -3,7 +3,26 @@
  * Renders flat tappable move chips + a 44x44 "⌃" sheet opener button,
  * auto-scrolls to the active viewed ply, and supports drag-up to open the sheet.
  */
-import { PIECE_CHARS } from '../model/piece.js';
+const PIECE_CHARS = {
+  red: {
+    general: '帥',
+    advisor: '仕',
+    elephant: '相',
+    horse: '傌',
+    chariot: '俥',
+    cannon: '炮',
+    soldier: '兵',
+  },
+  black: {
+    general: '將',
+    advisor: '士',
+    elephant: '象',
+    horse: '馬',
+    chariot: '車',
+    cannon: '砲',
+    soldier: '卒',
+  },
+};
 
 export class MoveStrip {
   /**

@@ -274,6 +274,7 @@ def _run_t1_to_t11_and_perf(
         cb = strip_chip.first.bounding_box()
         touch.tap(cb["x"] + cb["width"] / 2, cb["y"] + cb["height"] / 2)
         page.wait_for_timeout(240)
+        ply_total = page.evaluate("window.__board.history.length")
         ply_rev = page.evaluate("window.__view?.ply")
         banner_vis = page.locator(".review-banner").is_visible()
         live_btn = page.locator('[data-review="live"]')
@@ -283,10 +284,11 @@ def _run_t1_to_t11_and_perf(
             page.wait_for_timeout(220)
         ply_live = page.evaluate("window.__view?.ply")
         res["T9"] = {
-            "status": "PASS" if (ply_rev == 1 and banner_vis and ply_live == 2) else "FAIL",
+            "status": "PASS" if (ply_rev == 1 and banner_vis and ply_live == ply_total) else "FAIL",
             "ply_rev": ply_rev,
             "banner_vis": banner_vis,
             "ply_live": ply_live,
+            "ply_total": ply_total,
         }
 
     # ---------------- T10: Audio unlock ----------------
@@ -306,8 +308,13 @@ def _run_t1_to_t11_and_perf(
         }"""
     )
     geom = get_board_geom(page)
-    px0, py0 = square_to_client(geom, 0, 6)
-    px1, py1 = square_to_client(geom, 0, 5)
+    side_now = page.evaluate("window.__board.sideToMove")
+    if side_now == "black":
+        px0, py0 = square_to_client(geom, 0, 3)
+        px1, py1 = square_to_client(geom, 0, 4)
+    else:
+        px0, py0 = square_to_client(geom, 0, 6)
+        px1, py1 = square_to_client(geom, 0, 5)
     touch.tap(px0, py0)
     page.wait_for_timeout(90)
     touch.tap(px1, py1)

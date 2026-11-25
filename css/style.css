@@ -3303,6 +3303,7 @@ body.mode-effects .board-stage {
   justify-content: center;
   font-size: 13px;
   border-radius: 10px;
+  white-space: nowrap;
 }
 
 .game-shell[data-layout="stack"] .game-top-save {
@@ -3733,6 +3734,7 @@ body.mode-effects .board-stage {
 }
 
 .game-shell[data-layout="side"] .mode-bar,
+.game-shell[data-layout="side"] .variant-header-pill,
 .game-shell[data-layout="side"] .controls-grid,
 .game-shell[data-layout="side"] .ai-actions-row,
 .game-shell[data-layout="side"] .online-actions-row,
@@ -3740,6 +3742,23 @@ body.mode-effects .board-stage {
 .game-shell[data-layout="side"] .audio-bar,
 .game-shell[data-layout="side"] .status-block {
   display: none !important;
+}
+
+.game-shell[data-layout="side"] .captured-tray {
+  display: none;
+}
+
+.game-shell[data-layout="side"] .jieqi-pool-panel {
+  padding: 3px 6px;
+  gap: 2px;
+}
+
+.game-shell[data-layout="side"] .jieqi-pool-panel .pool-title {
+  display: none;
+}
+
+.game-shell[data-layout="side"] .game-nav-btn {
+  white-space: nowrap;
 }
 
 .game-shell[data-layout="side"] .mobile-controls-bar {

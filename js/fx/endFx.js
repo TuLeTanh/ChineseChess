@@ -393,8 +393,12 @@ export function playEndFx(opts) {
       if (boardSvg) {
         if (!coarse) {
           boardSvg.style.filter = `brightness(${lerp(1, 0.60, dimP).toFixed(3)})`;
+          boardSvg.style.transform = `translate(${shakeX.toFixed(2)}px, ${shakeY.toFixed(2)}px) scale(${pushScale.toFixed(4)})`;
+        } else if (shakeX !== 0 || shakeY !== 0) {
+          boardSvg.style.transform = `translate3d(${shakeX.toFixed(1)}px, ${shakeY.toFixed(1)}px, 0)`;
+        } else if (boardSvg.style.transform) {
+          boardSvg.style.transform = '';
         }
-        boardSvg.style.transform = `translate(${shakeX.toFixed(2)}px, ${shakeY.toFixed(2)}px) scale(${pushScale.toFixed(4)})`;
       }
       vignette.style.opacity = (dimP * 0.85).toFixed(3);
 

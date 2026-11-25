@@ -41,7 +41,9 @@ DEVICES: list[DeviceSpec] = [
     # Portrait phones
     DeviceSpec("320x568", 320, 568, 2.0, True, True, "phone_portrait"),
     DeviceSpec("360x640", 360, 640, 3.0, True, True, "phone_portrait"),
+    DeviceSpec("360x740", 360, 740, 3.0, True, True, "phone_portrait"),
     DeviceSpec("375x667", 375, 667, 2.0, True, True, "phone_portrait"),
+    DeviceSpec("inapp_390x700", 390, 700, 3.0, True, True, "phone_portrait"),
     DeviceSpec("390x844", 390, 844, 3.0, True, True, "phone_portrait"),
     DeviceSpec("412x915", 412, 915, 2.6, True, True, "phone_portrait"),
     DeviceSpec("430x932", 430, 932, 3.0, True, True, "phone_portrait"),

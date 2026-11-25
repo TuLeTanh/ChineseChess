@@ -63,6 +63,9 @@ export function createDefaultSettings() {
     guestId: generateGuestId(),
     theme: 'go-lim',
     bgQuality: 'high', // 'high' | 'low' | 'off'
+    haptics: true,
+    touchLift: true,
+    keepAwake: true,
     audio: {
       volume: 0.7,
       muted: false,
@@ -137,6 +140,9 @@ function normalizeSettings(raw) {
         : def.guestId,
     theme: raw.theme === 'ngoc-bich' ? 'ngoc-bich' : 'go-lim',
     bgQuality: ['high', 'low', 'off'].includes(raw.bgQuality) ? raw.bgQuality : def.bgQuality,
+    haptics: typeof raw.haptics === 'boolean' ? raw.haptics : true,
+    touchLift: typeof raw.touchLift === 'boolean' ? raw.touchLift : true,
+    keepAwake: typeof raw.keepAwake === 'boolean' ? raw.keepAwake : true,
     audio: {
       volume:
         typeof raw.audio?.volume === 'number' && Number.isFinite(raw.audio.volume)

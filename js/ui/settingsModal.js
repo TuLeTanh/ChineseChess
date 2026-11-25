@@ -139,7 +139,20 @@ export function openSettingsModal(ctx, initialTab = 'account', returnFocusEl = n
       `;
     } else if (activeTab === 'game') {
       bodyHtml = `
-        <div class="set-group-title">Cờ Úp (Jieqi)</div>
+        <div class="set-group-title">Cảm ứng &amp; Di động</div>
+        <label class="set-toggle">
+          <input type="checkbox" id="set-haptics" ${s.haptics !== false ? 'checked' : ''}>
+          <span>Rung khi chạm (nếu thiết bị hỗ trợ)</span>
+        </label>
+        <label class="set-toggle">
+          <input type="checkbox" id="set-touch-lift" ${s.touchLift !== false ? 'checked' : ''}>
+          <span>Nhấc quân lên trên ngón tay khi kéo</span>
+        </label>
+        <label class="set-toggle">
+          <input type="checkbox" id="set-keep-awake" ${s.keepAwake !== false ? 'checked' : ''}>
+          <span>Giữ màn hình sáng khi đang chơi</span>
+        </label>
+        <div class="set-group-title" style="margin-top:8px">Cờ Úp (Jieqi)</div>
         <label class="set-toggle">
           <input type="checkbox" id="set-jq-pool" ${s.jieqi.showPool ? 'checked' : ''}>
           <span>Hiện bảng quân úp còn lại</span>
@@ -299,6 +312,21 @@ export function openSettingsModal(ctx, initialTab = 'account', returnFocusEl = n
         if (ctx.sfx.isVoiceEnabled() !== wantOn) ctx.toggleVoice();
       });
     } else if (activeTab === 'game') {
+      modalRoot.querySelector('#set-haptics').addEventListener('change', (ev) => {
+        ctx.settingsStore.update((st) => {
+          st.haptics = ev.target.checked;
+        });
+      });
+      modalRoot.querySelector('#set-touch-lift').addEventListener('change', (ev) => {
+        ctx.settingsStore.update((st) => {
+          st.touchLift = ev.target.checked;
+        });
+      });
+      modalRoot.querySelector('#set-keep-awake').addEventListener('change', (ev) => {
+        ctx.settingsStore.update((st) => {
+          st.keepAwake = ev.target.checked;
+        });
+      });
       modalRoot.querySelector('#set-jq-pool').addEventListener('change', (ev) => {
         ctx.settingsStore.update((st) => {
           st.jieqi.showPool = ev.target.checked;

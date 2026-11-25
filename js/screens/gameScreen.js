@@ -490,7 +490,7 @@ export function createGameScreen(ctx) {
         mobileControlsEl.innerHTML = buttons
           .map(
             (b) =>
-              `<button type="button" class="mctrl-btn" data-action="${b.act}" ${b.disabled ? 'disabled' : ''}>` +
+              `<button type="button" class="mctrl-btn" data-maction="${b.act}" ${b.disabled ? 'disabled' : ''}>` +
               `<span class="mctrl-icon" aria-hidden="true">${b.icon}</span>` +
               `<span class="mctrl-label" data-nowrap="1">${b.label}</span>` +
               `</button>`
@@ -499,9 +499,9 @@ export function createGameScreen(ctx) {
       };
 
       mobileControlsEl.addEventListener('click', (ev) => {
-        const btn = ev.target.closest('button[data-action]');
+        const btn = ev.target.closest('button[data-maction]');
         if (!btn || btn.disabled) return;
-        const act = btn.dataset.action;
+        const act = btn.dataset.maction;
         if (act === 'undo') controller.handleUndo();
         else if (act === 'flip') boardView.flip();
         else if (act === 'new') sidePanel.requestNewGame();

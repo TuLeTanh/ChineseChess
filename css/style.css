@@ -3792,6 +3792,7 @@ body.mode-effects .board-stage {
 
 .game-shell[data-layout="stack"] .sheet-host[data-state="closed"] {
   pointer-events: none;
+  visibility: hidden;
 }
 
 .game-shell[data-layout="stack"] .sheet-handle {

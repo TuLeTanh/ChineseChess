@@ -277,9 +277,10 @@ def _run_t1_to_t11_and_perf(
         ply_rev = page.evaluate("window.__view?.ply")
         banner_vis = page.locator(".review-banner").is_visible()
         live_btn = page.locator('[data-review="live"]')
-        lb = live_btn.bounding_box()
-        touch.tap(lb["x"] + lb["width"] / 2, lb["y"] + lb["height"] / 2)
-        page.wait_for_timeout(220)
+        lb = live_btn.bounding_box() if banner_vis else None
+        if lb:
+            touch.tap(lb["x"] + lb["width"] / 2, lb["y"] + lb["height"] / 2)
+            page.wait_for_timeout(220)
         ply_live = page.evaluate("window.__view?.ply")
         res["T9"] = {
             "status": "PASS" if (ply_rev == 1 and banner_vis and ply_live == 2) else "FAIL",

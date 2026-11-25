@@ -355,7 +355,7 @@ def run_suite(engine_name: str = "chromium", baseline: bool = False, save_shots:
                     )
                     page.wait_for_selector("svg.board-svg")
                     page.wait_for_timeout(200)
-                    resign_btn = page.locator('[data-testid="mobile-controls"] [data-action="resign"], [data-action="resign"]').first
+                    resign_btn = page.locator('[data-testid="mobile-controls"] [data-maction="resign"], [data-action="resign"]').first
                     if resign_btn.is_visible():
                         resign_btn.click()
                         page.wait_for_selector(".modal-resign-confirm", timeout=3000)

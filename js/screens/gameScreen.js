@@ -143,7 +143,7 @@ export function createGameScreen(ctx) {
       const levelName = (AI_LEVELS.find((l) => l.id === aiLevel) || AI_LEVELS[1]).name;
       const topChipText =
         `${variant.id === 'coup' ? 'Cờ Úp' : 'Cờ Tướng'} · ` +
-        (mode === 'ai' ? `Đấu máy · ${levelName}` : mode === 'online' ? 'Trực tuyến' : 'Hai người');
+        (mode === 'ai' ? levelName : mode === 'online' ? 'Online' : '2 người');
 
       container.className = 'app-shell game-shell';
       container.innerHTML = `
@@ -441,7 +441,7 @@ export function createGameScreen(ctx) {
             const lvl = (AI_LEVELS.find((l) => l.id === controller.aiLevel) || AI_LEVELS[1]).name;
             topChipEl.textContent =
               `${variant.id === 'coup' ? 'Cờ Úp' : 'Cờ Tướng'} · ` +
-              (controller.mode === 'ai' ? `Đấu máy · ${lvl}` : controller.mode === 'online' ? 'Trực tuyến' : 'Hai người');
+              (controller.mode === 'ai' ? lvl : controller.mode === 'online' ? 'Online' : '2 người');
           }
         },
       });
@@ -497,7 +497,7 @@ export function createGameScreen(ctx) {
         mobileControlsEl.innerHTML = buttons
           .map(
             (b) =>
-              `<button type="button" class="mctrl-btn" data-action="${b.act}" ${b.disabled ? 'disabled' : ''}>` +
+              `<button type="button" class="mctrl-btn" data-maction="${b.act}" ${b.disabled ? 'disabled' : ''}>` +
               `<span class="mctrl-icon" aria-hidden="true">${b.icon}</span>` +
               `<span class="mctrl-label" data-nowrap="1">${b.label}</span>` +
               `</button>`
@@ -506,9 +506,9 @@ export function createGameScreen(ctx) {
       };
 
       mobileControlsEl.addEventListener('click', (ev) => {
-        const btn = ev.target.closest('button[data-action]');
+        const btn = ev.target.closest('button[data-maction]');
         if (!btn || btn.disabled) return;
-        const act = btn.dataset.action;
+        const act = btn.dataset.maction;
         if (act === 'undo') controller.handleUndo();
         else if (act === 'flip') boardView.flip();
         else if (act === 'new') sidePanel.requestNewGame();

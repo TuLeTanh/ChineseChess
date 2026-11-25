@@ -177,6 +177,13 @@ node server/index.js --lan
 3. **Lưu ý tường lửa**: nếu điện thoại không tải được trang, cho phép cổng TCP `8787` (hoặc `node.exe`) qua Windows Firewall trên mạng Private.
 4. **Lưu ý Pikafish**: engine Pikafish chỉ chạy qua `tools/server.py` trên máy tính (`127.0.0.1`); khi mở qua `node server/index.js --lan` trên điện thoại, game tự dùng engine **Nội bộ (JS)** chạy trực tiếp trên thiết bị và vẫn chơi đầy đủ Cờ Tướng, Cờ Úp, Đấu Online và Thư viện ván.
 
+**Đấu Online trên điện thoại (Phòng riêng & Tái đấu):**
+- Toàn bộ hộp thoại trực tuyến (**Đấu online**, **Phòng riêng — Tạo phòng / Nhập mã 6 ký tự**, **Kết quả & Tái đấu**) tự chuyển sang dạng bảng trượt (bottom sheet) ở màn hình dọc và hộp thoại căn giữa ở màn hình ngang, tự thu gọn khi mở bàn phím ảo, có nút sao chép mã / link mời (hỗ trợ cả HTTP mạng LAN không cần HTTPS) và đầy đủ luồng **Tái đấu** (chờ / hủy lời mời / đồng ý / từ chối / phát hiện đối thủ rời phòng).
+
+| | | |
+|---|---|---|
+| ![Tạo phòng trên điện thoại](docs/screenshots/online_room_mobile.png) | ![Nhập mã phòng trên điện thoại](docs/screenshots/online_join_mobile.png) | ![Lời mời tái đấu trên điện thoại](docs/screenshots/online_rematch_mobile.png) |
+
 ## Cách chơi
 
 - **Chế độ chơi**: chọn **Hai người** hoặc **Đấu máy** ở đầu bảng phải.

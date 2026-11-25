@@ -230,3 +230,17 @@
   - **Visual Rubric Scores (1–5)**:
     - Round 3: R1=5, R2=5, R3=5, R4=4, R5=4, R6=5, R7=3 (landscape bottom card clipped), R8=5.
     - Round 6 (Final): **R1=5, R2=5, R3=5, R4=5, R5=5, R6=5, R7=5, R8=5** (all >= 4).
+
+## Part A — Mobile Online Dialogs & Full Rematch Matrix (`fix/mobile-online-dialogs`)
+
+- **Root causes fixed**:
+  1. `.code-boxes` / `.code-box` lacked `min-width: 0; flex: 1 1 0; width: 100%` (default HTML `<input size="20">` inflated modal to `scrollWidth = 1480 px` on phones).
+  2. `.mode-offline-actions` set `display: inline-flex` without `[hidden] { display: none !important; }`, causing "Thử lại" & "Cài đặt" to remain visible even when online server was connected.
+  3. Global `--vvh` / `--app-h` viewport sync moved to `js/main.js` so all lobby/mode/online modals shrink cleanly above soft keyboards.
+  4. Added `inapp_390x700` and `360x740` to `tools/mobile_lib.py`; added landscape centered-panel modal rule, clipboard fallback for LAN HTTP, and `>= 44 px` modal touch targets.
+  5. Implemented full **Rematch Matrix (`a..k`)** in `server/index.js`, `js/online/onlineGameController.js`, `tests/online/rematch.test.js`, and `docs/PROTOCOL.md` (waiting + cancel, receiver banner accept/decline, opponent-left, simultaneous-press idempotency, double-tap guard, reload pending resync + TTL expiry, TC preservation, stale `gameId` rejection, and explicit leave forfeit).
+- **Verification**:
+  - `tools/verify_dialogs.py`: **PASS** (`checked=90, failures=0, offline_bug=0, console_errors=0`, down from 72 failures + 6 offline bugs in RED baseline).
+  - `tools/verify_online_mobile.py`: **PASS** (S1..S10 + Rematch Matrix + LAN insecure context + 0 console errors).
+  - `node --test`: **45/45 PASS** (including `tests/online/rematch.test.js`).
+  - **Self-Eval Round 1**: **R1=5, R2=5, R3=5, R4=5, R5=5** (all >= 4).

@@ -2556,6 +2556,19 @@ body.mode-effects .board-stage {
   flex-shrink: 0;
 }
 
+@media (max-height: 860px) {
+  .side-panel {
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .side-panel::-webkit-scrollbar {
+    display: none;
+  }
+  .move-list-section {
+    min-height: 120px;
+  }
+}
+
 .jieqi-pool-panel[hidden] {
   display: none;
 }

@@ -145,6 +145,54 @@ export function shuffleArray(arr, seed = null) {
   return copy;
 }
 
+/**
+ * Uniformly deal remaining unrevealed pool identities to still-covered squares of each side.
+ * Used when continuing an imported or truncated Jieqi game. Does NOT change publicFen().
+ * @param {JieqiBoard} board
+ * @param {{ red: Record<string, number>, black: Record<string, number> }} pool
+ * @param {(() => number) | number | null} [rngOrSeed]
+ * @returns {Map<string, string>}
+ */
+export function dealRemainingPool(board, pool, rngOrSeed = null) {
+  const rng =
+    typeof rngOrSeed === 'function'
+      ? rngOrSeed
+      : typeof rngOrSeed === 'number' && Number.isFinite(rngOrSeed)
+        ? makeSeededRng(rngOrSeed)
+        : null;
+
+  const secret = new Map();
+  for (const side of [BLACK, RED]) {
+    const coveredSquares = [];
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 9; x++) {
+        const p = board.at({ x, y });
+        if (p && p.side === side && p.covered) {
+          coveredSquares.push(`${x},${y}`);
+        }
+      }
+    }
+    const deck = poolToArray(pool[side] || {});
+    if (deck.length !== coveredSquares.length) {
+      throw new Error(
+        `Pool mismatch for ${side}: ${deck.length} pool pieces vs ${coveredSquares.length} covered squares`
+      );
+    }
+    // Fisher-Yates shuffle with rng or crypto.getRandomValues
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = rng ? Math.floor(rng() * (i + 1)) : defaultRandomInt(i + 1);
+      const tmp = deck[i];
+      deck[i] = deck[j];
+      deck[j] = tmp;
+    }
+    for (let i = 0; i < coveredSquares.length; i++) {
+      secret.set(coveredSquares[i], deck[i]);
+    }
+  }
+  board._secret = secret;
+  return secret;
+}
+
 function serializePoolStr(pool) {
   const one = (p, upper) =>
     NON_GENERAL_KINDS.map((k) => {

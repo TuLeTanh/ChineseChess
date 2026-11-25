@@ -2758,7 +2758,7 @@ body.mode-effects .board-stage {
 
 .online-disconnect-banner {
   position: absolute;
-  top: 14px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
@@ -2770,6 +2770,10 @@ body.mode-effects .board-stage {
   color: #FFF4EC;
   border: 1px solid rgba(255, 190, 160, 0.45);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.board-stage.has-disconnect-banner .board-toast {
+  top: 56px;
 }
 
 .online-draw-toast {

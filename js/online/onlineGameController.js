@@ -225,6 +225,7 @@ export class OnlineGameBridge {
       const secs = Math.round((graceMs || 90_000) / 1000);
       this.disconnectBanner.textContent = `Đối thủ mất kết nối · chờ ${secs} giây…`;
       this.disconnectBanner.hidden = false;
+      this.stageEl.classList.add('has-disconnect-banner');
     });
 
     on('opponent.reconnected', () => {
@@ -233,6 +234,7 @@ export class OnlineGameBridge {
       this.players[oppSide].connected = true;
       this._syncPlayerCards();
       this.disconnectBanner.hidden = true;
+      this.stageEl.classList.remove('has-disconnect-banner');
       this.boardView.showToast('Đối thủ đã kết nối lại');
     });
 
@@ -256,6 +258,7 @@ export class OnlineGameBridge {
       this.over = true;
       this.drawToast.hidden = true;
       this.disconnectBanner.hidden = true;
+      this.stageEl.classList.remove('has-disconnect-banner');
       if (msg.clocks) this.clocks = msg.clocks;
       this._renderClocks();
       this.boardView.setLocked(true);

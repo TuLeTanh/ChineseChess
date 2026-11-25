@@ -40,6 +40,14 @@ Game Cờ Tướng chạy ngay trên trình duyệt: bàn cờ và quân cờ v�
 |---|---|---|
 | ![Thư viện ván](docs/screenshots/library.png) | ![Nhập ván cờ](docs/screenshots/import_dialog.png) | ![Xem lại ván đã lưu](docs/screenshots/replay_banner.png) |
 
+**Bảng điều khiển gọn & Phân tích ván cờ (`Pikafish` / `Nội bộ JS`)**
+- **Bảng bên phải gọn (320 px, không cuộn toàn bảng)**: chỉ giữ tiêu đề (`Phân tích` + menu `⋯`), 2 thẻ người chơi gọn, danh sách nước đi (vùng cuộn duy nhất), dòng trạng thái 1 dòng, và hàng nút theo đúng chế độ chơi (`Đấu máy`, `Hai người` có **Đi lại / Hòa / Đầu hàng**, `Online`, `Xem lại`).
+- **Phân tích toàn bảng (Full-Swap)** ([`docs/ANALYSIS.md`](docs/ANALYSIS.md)): bấm **Phân tích** để hoán đổi toàn bộ bảng phải (hoặc mở toàn màn hình trên điện thoại) với nhận định 5 mức tiếng Việt, phân loại nước đi, **Phương án tiếp theo 6 nước** (bấm xem trước bàn cờ không phá hủy lịch sử, nút **Sâu hơn** 8 nước), biểu đồ đánh giá, độ chính xác từng bên, và thanh đánh giá `24 px`. Hỗ trợ phân tích trực tiếp cho ván **Hai người** Cờ Tướng và sau ván cho mọi chế độ Cờ Tướng (giữ nguyên quy tắc công bằng cho Đấu máy & Online).
+
+| | | |
+|---|---|---|
+| ![Bảng gọn](docs/screenshots/panel_compact.png) | ![Phân tích máy tính](docs/screenshots/analysis_panel_desktop.png) | ![Phân tích điện thoại](docs/screenshots/analysis_panel_mobile.png) |
+
 **Giao diện**
 - Bàn cờ và 14 loại quân vẽ hoàn toàn bằng SVG (vân gỗ bằng `feTurbulence`, đổ bóng, vát cạnh, chữ Hán khắc nổi), nét sắc ở mọi độ phân giải (đã kiểm tra DPR 1, 1.5, 2).
 - Hai theme: **Gỗ Lim** (ván gỗ ấm, quân ngà) và **Ngọc Bích** (bàn xanh đá, quân đỏ sơn mài chữ vàng), chuyển theme có hiệu ứng mờ dần.

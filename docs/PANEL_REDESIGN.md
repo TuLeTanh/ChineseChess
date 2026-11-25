@@ -34,4 +34,20 @@ Tài liệu ánh xạ toàn bộ thành phần hiện tại của bảng bên (`
 | Bất kỳ | `jieqi` | Đã kết thúc hoặc Archive/Share | **ẨN** | Chặn (thông báo chưa hỗ trợ) |
 
 ## 3. Các selector test cũ cần cập nhật (sẽ ghi đầy đủ khi hoàn tất Phase 2–4)
-- Các test thao tác trực tiếp trên nút `Ván mới`, `Xoay bàn`, `Giao diện`, `Gợi ý`, `Lưu / Xuất`, `Đổi cấp độ/engine` trên mặt bảng bên sẽ mở menu **⋯** (`[data-testid="panel-menu-btn"]`) trước hoặc dùng phím tắt (`N`, `F`, `M`, `V`, `Ctrl+Z`). Danh sách chi tiết sẽ được cập nhật ở cuối Phase 4.
+- Các selector đã cập nhật trong bộ test Playwright hiện có (Phase 4):
+  - `tools/verify.py`: `button[data-action='undo']` → `[data-pact="undo"]` (local) / `Control+z` (AI); `flip`/`theme`/`hint` → `[data-testid="panel-menu-btn"]` + `[data-mitem="..."]`; `new` → phím `n`; `[data-pside='black']` → `[data-mitem="ai_config"]` + `[data-cside="black"]`; `resign` → `[data-pact="resign"]`.
+  - `tools/verify_fx.py`: `button[data-action='undo']` → `[data-pact="undo"]`.
+  - `tools/verify_jieqi.py`: `[data-action="hint"]` → `[data-testid="panel-menu-btn"]` + `[data-mitem="hint"]`.
+  - `tools/verify_saves.py`: `[data-action="resign"]` → `[data-pact="resign"]`; `[data-online-act="resign"]` → `[data-pact="online-resign"]`; `[data-action="save-export"]` → `[data-testid="panel-menu-btn"]` + `[data-mitem="export"]`.
+  - `tools/verify_engine.py`: `[data-engine='pikafish']` & `[data-pside='black']` → `[data-testid="panel-menu-btn"]` + `[data-mitem="ai_config"]`; `undo`/`new` → `Control+z` / `n`.
+  - `tools/verify_races.py`: `undo`/`new` → `Control+z` / `n`; `resign` → `[data-pact="resign"]`.
+  - `tools/verify_analysis.py`: cập nhật theo ma trận P4 (live AI ẩn nút Phân tích, unfinished AI archive chặn phân tích, Cờ Úp hiện ghi chú trong menu `⋯`, export qua `[data-mitem="export"]`, kiểm tra `offsetParent === null`).
+  - `tools/verify_mobile.py` & `tools/verify_touch.py`: `[data-action="resign"]` → `[data-pact="resign"]`; T12 kiểm tra clipboard fallback trên ván AI đã kết thúc.
+
+## 5. Tự đánh giá trực quan (Visual Self-Evaluation — Round 3 Final)
+- **R1 (Clarity & Hierarchy)**: **5/5** — Bàn cờ nổi bật, bảng gọn chỉ còn tiêu đề + 2 thẻ người chơi + danh sách nước đi + 1 dòng trạng thái + hàng nút đáy.
+- **R2 (Fit & Scroll Discipline)**: **5/5** — Không cuộn toàn bảng (`scrollH === clientH`), danh sách nước đi là vùng cuộn duy nhất, chân bảng không bị cắt mép.
+- **R3 (Full-Swap Analysis)**: **5/5** — Thanh `← Về ván | Phân tích | Pikafish | ⋯` cố định, nhận định 5 mức, chất lượng nước đi, phương án 6 nước, biểu đồ, vòng độ chính xác rõ ràng.
+- **R4 (Board Overlays & Eval Bar)**: **5/5** — Banner xem lại neo trên khung bàn cờ (`bannerBottom 60 <= svgTop 62`), thanh đánh giá `24 px`, mũi tên sai lầm không đè nhau.
+- **R5 (Phone & Landscape)**: **5/5** — `390×844` và `844×390` không tràn ngang, không đè chữ, không lặp nút.
+- **R6 (Dual Themes)**: **5/5** — Cả **Gỗ Lim** và **Ngọc Bích** đồng nhất, độ tương phản cao (`>= 11.29`).

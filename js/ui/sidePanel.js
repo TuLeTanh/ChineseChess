@@ -139,6 +139,7 @@ export class SidePanel {
   setHintsLeft(count) {
     this.hintsLeft = Math.max(0, count);
     this._syncAiCardsAndButtons();
+    this._renderOverflowMenu(this.getPolicy(), this.resigned || this.localDrawAgreed);
   }
 
   /** Set resigned flag. */
@@ -769,9 +770,6 @@ export class SidePanel {
           </div>
           <div class="captured-tray" data-tray="red" aria-label="Quân Đen bị Đỏ ăn"></div>
         </section>
-
-        <div class="compact-status-line" data-testid="compact-status-line" aria-live="polite">Lượt của Đỏ</div>
-        <div class="panel-action-row" data-testid="panel-action-row"></div>
       </div>
 
       <div class="sheet-host" data-testid="bottom-sheet" data-state="closed" role="dialog" aria-modal="false" aria-label="Nước đi và tùy chọn">
@@ -877,6 +875,11 @@ export class SidePanel {
       </div>
           </div>
         </div>
+      </div>
+
+      <div class="compact-panel-footer" data-testid="compact-panel-footer">
+        <div class="compact-status-line" data-testid="compact-status-line" aria-live="polite">Lượt của Đỏ</div>
+        <div class="panel-action-row" data-testid="panel-action-row"></div>
       </div>
     `;
 

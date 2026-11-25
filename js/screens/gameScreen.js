@@ -205,7 +205,11 @@ export function createGameScreen(ctx) {
       container.querySelector('[data-testid="top-save-btn"]').addEventListener('click', openSaveExport);
 
       container.querySelector('[data-nav="lobby"]').addEventListener('click', () => {
-        if (controller && controller.isGameInProgress()) {
+        const inProgress =
+          mode === 'online'
+            ? Boolean(onlineBridge && !onlineBridge.over)
+            : Boolean(controller && controller.isGameInProgress());
+        if (inProgress) {
           modalRoot.hidden = false;
           modalRoot.innerHTML = `
             <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="leave-title">

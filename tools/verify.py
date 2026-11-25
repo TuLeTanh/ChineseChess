@@ -192,7 +192,7 @@ def main():
             print("[app_midgame.png] saved")
 
             # Undo restores Black's captured Red Soldier
-            page.locator("button[data-action='undo']").click()
+            page.locator('[data-pact="undo"]').click()
             page.wait_for_timeout(250)
             assert page.locator("[data-tray='black'] svg.captured-mini").count() == 0
 
@@ -211,7 +211,8 @@ def main():
             page.wait_for_timeout(320)
 
             # Screenshot: app_flipped.png (upright glyphs verified)
-            page.locator("button[data-action='flip']").click()
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="flip"]').click()
             page.wait_for_timeout(450)
             base_tf = page.locator("g.layer-board-base").get_attribute("transform") or ""
             assert "rotate(180" in base_tf
@@ -223,9 +224,10 @@ def main():
             print("[app_flipped.png] saved")
 
             # Flip back + switch theme -> Screenshot: app_jade.png
-            page.locator("button[data-action='flip']").click()
+            page.keyboard.press("f")
             page.wait_for_timeout(420)
-            page.locator("button[data-action='theme']").click()
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="theme"]').click()
             page.wait_for_timeout(320)
             assert "Ngọc Bích" in (page.locator("button[data-action='theme']").get_attribute("title") or "")
             page.screenshot(path=str(PREVIEW_DIR / "app_jade.png"))
@@ -234,7 +236,7 @@ def main():
             # Test voice toggle OFF (V): NO voice:* entries appear on New Game
             page.keyboard.press("v")
             clear_sfx_log(page)
-            page.locator("button[data-action='new']").click()
+            page.keyboard.press("n")
             page.wait_for_timeout(100)
             assert page.locator(".modal-card").is_visible()
             page.locator(".modal-confirm").click()
@@ -268,14 +270,14 @@ def main():
             # Test mute produces NO log entries at all
             page.keyboard.press("m")
             clear_sfx_log(page)
-            page.locator("button[data-action='new']").click()
+            page.keyboard.press("n")
             page.wait_for_timeout(200)
             assert len(get_sfx_log(page)) == 0, "Muted state must produce zero sfx/voice log entries"
 
             # Unmute + New Game (from empty board -> immediate) logs 'start' and 'voice:start'
             page.keyboard.press("m")
             clear_sfx_log(page)
-            page.locator("button[data-action='new']").click()
+            page.keyboard.press("n")
             page.wait_for_timeout(720)
             log_start = [e["event"] for e in get_sfx_log(page)]
             assert "start" in log_start and "voice:start" in log_start, f"Expected start + voice:start, got {log_start}"
@@ -306,7 +308,7 @@ def main():
             page.locator(".modal-review").click()
             page.wait_for_timeout(80)
             assert not page.locator(".modal-gameover").is_visible()
-            page.locator("button[data-action='undo']").click()
+            page.locator('[data-pact="undo"]').click()
             page.wait_for_timeout(220)
             assert page.locator(".move-row").count() == 0, "Undo must work after game over"
 
@@ -385,7 +387,7 @@ def main():
             # Undo from review goes live first, then undoes
             page.locator("button.move-chip[data-ply='3']").click()
             page.wait_for_timeout(100)
-            page.locator("button[data-action='undo']").click()
+            page.locator('[data-pact="undo"]').click()
             page.wait_for_timeout(240)
             v_undo = page.evaluate("() => window.__view")
             assert v_undo["ply"] == 7 and v_undo["total"] == 7, f"Undo from review must go live then undo, got {v_undo}"
@@ -508,21 +510,27 @@ def main():
             cap_count = page.locator("svg.captured-mini").count()
             assert piece_count == 32 - cap_count, f"Expected {32 - cap_count} pieces on board, got {piece_count}"
 
-            # Hint button: draws blue arrow and decrements counter (3 -> 2)
-            assert "Gợi ý (3)" in page.locator("button[data-action='hint']").text_content()
-            page.locator("button[data-action='hint']").click()
+            # Hint button (inside "⋯" overflow menu): draws blue arrow and decrements counter (3 -> 2)
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            assert "Gợi ý (3)" in page.locator('[data-mitem="hint"]').text_content()
+            page.locator('[data-mitem="hint"]').click()
             page.locator(".hint-arrow").wait_for(state="visible", timeout=4000)
-            assert "Gợi ý (2)" in page.locator("button[data-action='hint']").text_content()
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            assert "Gợi ý (2)" in page.locator('[data-mitem="hint"]').text_content()
+            page.keyboard.press("Escape")
             page.screenshot(path=str(PREVIEW_DIR / "app_hint_arrow.png"))
             print("[app_hint_arrow.png] saved")
 
             # Undo in AI mode removes TWO plies (back to 0 moves)
-            page.locator("button[data-action='undo']").click()
+            page.keyboard.press("Control+z")
             page.wait_for_timeout(300)
             assert page.locator(".move-row").count() == 0, "Undo in AI mode must remove 2 plies"
 
-            # Switch to Black: board auto-flips and computer (Red) moves first
-            page.locator("[data-pside='black']").click()
+            # Switch to Black via "⋯" -> AI config modal: board auto-flips and computer (Red) moves first
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="ai_config"]').click()
+            page.locator('[data-cside="black"]').click()
+            page.locator('.modal-cfg-ok').click()
             page.wait_for_timeout(120)
             base_tf_blk = page.locator("g.layer-board-base").get_attribute("transform") or ""
             assert "rotate(180" in base_tf_blk, "Playing as Black must auto-flip the board"
@@ -533,7 +541,7 @@ def main():
             page.wait_for_timeout(350)
 
             # Resign -> confirm modal -> skip cinematic -> game over modal ("Bạn đã đầu hàng - Máy thắng")
-            page.locator("button[data-action='resign']").click()
+            page.locator('[data-pact="resign"]').click()
             page.wait_for_timeout(100)
             page.locator(".modal-resign-confirm").click()
             page.locator(".fx-skip-btn").wait_for(state="visible", timeout=2000)

@@ -464,9 +464,12 @@ def main():
             page.evaluate("() => document.fonts.ready")
             page.wait_for_timeout(150)
 
-            assert page.locator("[data-engine='pikafish'].is-selected").is_visible(), "Expected Pikafish selected"
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="ai_config"]').click()
+            assert page.locator('[data-ceng="pikafish"].is-selected').is_visible(), "Expected Pikafish selected"
             page.screenshot(path=str(PREVIEW_DIR / "app_engine_selector.png"))
             print("[app_engine_selector.png] saved")
+            page.locator('.modal-cancel').click()
 
             # Play 3 moves as Red vs Pikafish (measure rAF during Move 2 so page.screenshot() on Move 1 does not skew maxGap)
             opening_red = [(7, 7, 4, 7), (7, 9, 6, 7), (8, 9, 7, 9)]
@@ -501,19 +504,22 @@ def main():
             assert raf_stats["maxGap"] <= 120, f"UI blocked: maxGap={raf_stats['maxGap']}"
 
             # Undo removes 2 plies
-            page.locator("button[data-action='undo']").click()
+            page.keyboard.press("Control+z")
             page.wait_for_timeout(300)
             assert page.locator(".move-row").count() == 2, "Undo in Pikafish mode must remove 2 plies"
 
             # New game resets cleanly
-            page.locator("button[data-action='new']").click()
+            page.keyboard.press("n")
             page.wait_for_timeout(100)
             page.locator(".modal-confirm").click()
             page.wait_for_timeout(150)
             assert page.locator(".move-row").count() == 0
 
             # Play as Black vs Pikafish (auto-flipped, Pikafish moves first)
-            page.locator("[data-pside='black']").click()
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="ai_config"]').click()
+            page.locator('[data-cside="black"]').click()
+            page.locator('.modal-cfg-ok').click()
             page.wait_for_timeout(120)
             page.wait_for_function(
                 "() => (document.querySelector('.move-row .col-red')?.textContent || '').trim().length >= 4",

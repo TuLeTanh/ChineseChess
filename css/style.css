@@ -4603,27 +4603,22 @@ body.mode-effects .board-stage {
    UI Redesign: Compact Default Side Panel & Full-Swap Analysis
    ========================================================= */
 
-/* P7: Review banner & PV preview banner docked above board frame on ALL layouts */
-.game-shell:not([data-layout="stack"]):not([data-layout="side"]) .board-stage {
+/* P7: Review banner & PV preview banner docked above board frame on ALL layouts
+   without shifting the live desktop board when no banner is visible */
+.game-shell:not(.is-replay-shell):not([data-layout="stack"]):not([data-layout="side"]) .board-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
-  padding: 8px 12px 10px;
+  justify-content: center;
+  gap: 0;
 }
-.game-shell:not([data-layout="stack"]):not([data-layout="side"]) .game-top-nav {
-  position: static;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.game-shell:not([data-layout="stack"]):not([data-layout="side"]) .game-board-host {
+.game-shell:not(.is-replay-shell):not([data-layout="stack"]):not([data-layout="side"]) .game-board-host {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .review-banner-slot,
 .replay-banner-slot {
@@ -4632,15 +4627,15 @@ body.mode-effects .board-stage {
   justify-content: center;
   flex-shrink: 0;
 }
-.review-banner-slot:empty,
-.replay-banner-slot:empty {
+.review-banner-slot:not(:has(.review-banner:not([hidden]))),
+.replay-banner-slot:not(:has(.review-banner:not([hidden]))) {
   display: none;
 }
 .review-banner-slot .review-banner,
 .replay-banner-slot .review-banner {
   position: static;
   transform: none;
-  margin: 0 auto;
+  margin: 4px auto 2px;
   max-width: 100%;
 }
 .review-banner-slot .review-banner[hidden],
@@ -4670,10 +4665,11 @@ body.mode-effects .board-stage {
   width: 320px;
   min-width: 300px;
   max-width: 340px;
-  height: 100%;
-  max-height: 100dvh;
+  height: calc(100dvh - 24px);
+  max-height: calc(100dvh - 24px);
+  box-sizing: border-box;
   overflow: hidden;
-  padding: 10px 12px;
+  padding: 8px 12px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -4681,19 +4677,81 @@ body.mode-effects .board-stage {
 .game-shell[data-layout="side"] .side-panel {
   width: clamp(248px, 34vw, 310px);
   min-width: 240px;
-  padding: 8px 10px;
+  height: 100%;
+  max-height: 100%;
+  padding: 6px 10px;
+}
+.game-shell[data-layout="side"] .side-panel .move-list-scroll {
+  min-height: 36px;
+}
+.move-start-chip[hidden] {
+  display: none !important;
 }
 
 .game-shell:not([data-layout="stack"]) .compact-panel-body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex-shrink: 0;
+}
+.game-shell:not([data-layout="stack"]) .compact-panel-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.game-shell:not([data-layout="stack"]) .side-panel > .sheet-host {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
-.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .compact-panel-body {
+.game-shell:not([data-layout="stack"]) .side-panel .sheet-scroll-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .sheet-pane[data-spane="moves"] {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .move-list-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .move-list-scroll-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.game-shell:not([data-layout="stack"]) .side-panel .move-list-scroll {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: none;
+  overflow-y: auto;
+}
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .compact-panel-body,
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .compact-panel-footer,
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .sheet-pane:not([data-spane="analysis"]) {
   display: none !important;
+}
+.game-shell:not([data-layout="stack"]) .side-panel.is-analysis-open .analysis-pane-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Hide legacy verbose controls in compact desktop/side default panel */
@@ -4706,9 +4764,39 @@ body.mode-effects .board-stage {
 .game-shell:not([data-layout="stack"]) .side-panel .side-export-row,
 .game-shell:not([data-layout="stack"]) .side-panel .practice-toggle,
 .game-shell:not([data-layout="stack"]) .side-panel .status-banner,
+.game-shell:not([data-layout="stack"]) .side-panel .turn-indicator,
+.game-shell:not([data-layout="stack"]) .side-panel .result-banner,
 .game-shell:not([data-layout="stack"]) .side-panel .panel-header,
+.game-shell:not([data-layout="stack"]) .side-panel .sheet-pane[data-spane="options"],
 .game-shell:not([data-layout="stack"]) .side-panel .sheet-pane[data-spane="settings"] {
   display: none !important;
+}
+
+/* Landscape phone (side layout): mobile-controls-bar handles bottom actions */
+.game-shell[data-layout="side"] .compact-panel-footer,
+.game-shell[data-layout="side"] .panel-header-row {
+  display: none !important;
+}
+
+/* Keep replay top-nav unclipped at top of viewport */
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .board-stage {
+  height: 100%;
+  max-height: 100dvh;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 10px 14px 10px;
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .game-top-nav {
+  flex-shrink: 0;
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .game-board-host {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.is-replay-shell:not([data-layout="stack"]):not([data-layout="side"]) .board-wrapper {
+  max-height: 100%;
 }
 
 /* Header row (44px) */
@@ -4786,7 +4874,8 @@ body.mode-effects .board-stage {
 .panel-overflow-menu[hidden] {
   display: none !important;
 }
-.panel-menu-item {
+.panel-menu-item,
+.p-menu-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4801,11 +4890,14 @@ body.mode-effects .board-stage {
   cursor: pointer;
 }
 .panel-menu-item:hover,
-.panel-menu-item:focus-visible {
+.panel-menu-item:focus-visible,
+.p-menu-item:hover,
+.p-menu-item:focus-visible {
   background: rgba(217, 164, 65, 0.18);
   outline: none;
 }
-.panel-menu-item:disabled {
+.panel-menu-item:disabled,
+.p-menu-item:disabled {
   opacity: 0.48;
   cursor: not-allowed;
 }
@@ -4814,7 +4906,8 @@ body.mode-effects .board-stage {
   margin: 4px 6px;
   background: rgba(255, 255, 255, 0.12);
 }
-.panel-menu-note {
+.panel-menu-note,
+.p-menu-note {
   padding: 6px 10px;
   font-size: 11.5px;
   color: var(--text-muted, #bba98d);
@@ -4909,8 +5002,9 @@ body.mode-effects .board-stage {
   text-overflow: ellipsis;
 }
 
-/* Mobile stack: keep compact header/status/action-row hidden inside sheet (phone uses mobile-controls-bar + sheet tabs) */
+/* Mobile stack: keep compact header/footer hidden inside sheet (phone uses mobile-controls-bar + sheet tabs) */
 .game-shell[data-layout="stack"] .panel-header-row,
+.game-shell[data-layout="stack"] .compact-panel-footer,
 .game-shell[data-layout="stack"] .compact-status-line,
 .game-shell[data-layout="stack"] .panel-action-row {
   display: none !important;
@@ -4958,7 +5052,8 @@ body.mode-effects .board-stage {
   color: var(--accent-gold, #e6b85c);
   white-space: nowrap;
 }
-.an-preset-menu {
+.an-preset-menu,
+.an-more-menu {
   position: absolute;
   top: 38px;
   right: 0;
@@ -4973,11 +5068,33 @@ body.mode-effects .board-stage {
   flex-direction: column;
   gap: 2px;
 }
-[data-theme="ngoc-bich"] .an-preset-menu {
+[data-theme="ngoc-bich"] .an-preset-menu,
+[data-theme="ngoc-bich"] .an-more-menu {
   background: rgba(12, 30, 26, 0.97);
   border-color: rgba(110, 231, 183, 0.35);
 }
-.an-preset-menu[hidden] {
+.an-preset-menu[hidden],
+.an-more-menu[hidden] {
+  display: none !important;
+}
+.an-run-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.an-verdict-card,
+.an-quality-card {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(217, 164, 65, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.an-verdict-card[hidden],
+.an-quality-card[hidden] {
   display: none !important;
 }
 .an-scroll-body {

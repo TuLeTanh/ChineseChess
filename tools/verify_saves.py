@@ -107,7 +107,7 @@ def main():
             assert fen_before.split(" ")[0] == fen_after.split(" ")[0], f"Xiangqi resume FEN mismatch: {fen_before} vs {fen_after}"
 
             # Resign -> auto-saves finished game to library
-            page.locator('[data-action="resign"]').click()
+            page.locator('[data-testid="panel-action-row"] [data-pact="resign"]').click()
             page.locator('.modal-resign-confirm').click()
             page.wait_for_timeout(400)
             lib_cnt = page.evaluate("async () => (await window.__gameStore.listGames()).total")
@@ -134,14 +134,15 @@ def main():
             assert page.locator('[data-action="undo"]').is_disabled(), "Undo must remain disabled in Cờ Úp AI"
 
             # Integrity check: during live game, export buttons are disabled
-            page.locator('[data-action="save-export"]').click()
+            page.locator('[data-testid="panel-menu-btn"]').click()
+            page.locator('[data-mitem="export"]').click()
             page.wait_for_selector('[data-exp="fen"]', timeout=4000)
             assert page.locator('[data-exp="fen"]').is_disabled(), "FEN copy must be disabled during live game"
             assert page.locator('[data-exp="json"]').is_disabled(), "JSON export must be disabled during live game"
             page.keyboard.press("Escape")
 
             # Resign to end Cờ Úp game -> export buttons unlock
-            page.locator('#side-panel [data-action="resign"]').click()
+            page.locator('[data-testid="panel-action-row"] [data-pact="resign"]').click()
             page.locator('.modal-resign-confirm').click()
             page.wait_for_selector('.modal-export', timeout=6000)
             page.locator('.modal-export').click()
@@ -264,7 +265,7 @@ def main():
             po2.locator('[data-tile="online"]').click(); po2.locator('.modal-find').click()
             po1.wait_for_function("() => window.__onlineState && window.__onlineState.gameId", timeout=8000)
             po2.wait_for_function("() => window.__onlineState && window.__onlineState.gameId", timeout=8000)
-            po1.locator('[data-online-act="resign"]').click()
+            po1.locator('[data-pact="online-resign"]').click()
             po1.locator('.modal-resign-confirm').click()
             po2.wait_for_selector('#online-go-title', timeout=6000)
             po1.wait_for_timeout(300)

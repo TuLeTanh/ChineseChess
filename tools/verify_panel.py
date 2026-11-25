@@ -235,6 +235,10 @@ def run_suite(baseline: bool = False) -> dict[str, Any]:
                 results["P8_eval_bar"] = {"status": "FAIL", "reason": "no panel-analyze-btn"}
 
             # ---------------- P7: Review banner does not cover board file labels (live review) ----------------
+            if page.locator('[data-testid="an-back-btn"]').is_visible():
+                page.locator('[data-testid="an-back-btn"]').click()
+                page.wait_for_timeout(120)
+            page.goto(f"{BASE}/?test#/", wait_until="domcontentloaded")
             page.goto(f"{BASE}/?test#/play/cotuong/local", wait_until="domcontentloaded")
             page.wait_for_selector("svg.board-svg", timeout=8000)
             _click_sq(page, 7, 7); _click_sq(page, 4, 7); page.wait_for_timeout(150)

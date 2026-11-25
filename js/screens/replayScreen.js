@@ -17,6 +17,9 @@ import {
   saveRecordWithPrunePrompt,
 } from '../ui/saveModals.js';
 import { leakTracker } from '../app/router.js';
+import { LayoutManager } from '../ui/layoutManager.js';
+import { MoveStrip } from '../ui/moveStrip.js';
+import { BottomSheet } from '../ui/bottomSheet.js';
 
 const FILES = 'abcdefghi';
 
@@ -51,6 +54,9 @@ function rebuildBoardFromRecord(record) {
 export function createReplayScreen(ctx) {
   let boardView = null;
   let sidePanel = null;
+  let layoutManager = null;
+  let moveStrip = null;
+  let bottomSheet = null;
   let autoTimer = null;
   let onKeyDown = null;
   let unsubSettings = null;
@@ -116,12 +122,31 @@ export function createReplayScreen(ctx) {
             <span class="replay-mode-pill">${isShare ? 'Đang xem ván chia sẻ' : 'Đang xem ván đã lưu'}</span>
           </div>
           <div class="game-board-host"></div>
+          <div class="move-strip-host"></div>
+          <nav class="mobile-controls-bar" data-testid="mobile-controls" aria-label="Điều khiển xem lại">
+            <button type="button" class="mctrl-btn" data-rev-act="start"><span class="mctrl-icon">⏮</span><span class="mctrl-label">Đầu</span></button>
+            <button type="button" class="mctrl-btn" data-rev-act="prev"><span class="mctrl-icon">◀</span><span class="mctrl-label">Trước</span></button>
+            <button type="button" class="mctrl-btn" data-rev-act="play"><span class="mctrl-icon">⏯</span><span class="mctrl-label">Phát</span></button>
+            <button type="button" class="mctrl-btn" data-rev-act="next"><span class="mctrl-icon">▶</span><span class="mctrl-label">Sau</span></button>
+            <button type="button" class="mctrl-btn" data-rev-act="live"><span class="mctrl-icon">⏭</span><span class="mctrl-label">Cuối</span></button>
+          </nav>
         </main>
         <aside id="side-panel" class="side-panel" aria-label="Bảng xem lại ván đã lưu"></aside>
       `;
 
       const stage = container.querySelector('.game-board-host');
+      const moveStripHost = container.querySelector('.move-strip-host');
       const sidePanelEl = container.querySelector('#side-panel');
+      container.querySelector('.mobile-controls-bar').addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-rev-act]');
+        if (!b) return;
+        const a = b.dataset.revAct;
+        if (a === 'start') goToPly(0);
+        else if (a === 'prev') goToPly(viewPly - 1);
+        else if (a === 'play') toggleAuto();
+        else if (a === 'next') goToPly(viewPly + 1);
+        else if (a === 'live') goToPly(board.history.length);
+      });
 
       container.querySelector('[data-nav="back"]').addEventListener('click', () => {
         ctx.router.navigate(isShare ? '/' : '/library');
@@ -154,6 +179,7 @@ export function createReplayScreen(ctx) {
           reducedMotion: false,
         });
         sidePanel.setReviewState({ viewPly, hasNewMoves: false, autoPlaying: Boolean(autoTimer), skipScroll: isScrub });
+        if (moveStrip) moveStrip.update(viewPly);
         if (ctx.testMode && typeof window !== 'undefined') {
           window.__view = { ply: viewPly, total, fen: snap.fen };
         }
@@ -286,6 +312,37 @@ export function createReplayScreen(ctx) {
 
       goToPly(board.history.length, { isScrub: true });
 
+      const sheetEl = sidePanelEl.querySelector('[data-testid="bottom-sheet"]');
+      if (sheetEl) {
+        bottomSheet = new BottomSheet({
+          sheetEl,
+          hostContainer: container,
+          onStateChange: (st) => {
+            if (layoutManager) layoutManager.setSheetState(st);
+            if (moveStrip) moveStrip.setExpanded(st !== 'closed');
+          },
+        });
+      }
+
+      moveStrip = new MoveStrip({
+        container: moveStripHost,
+        board,
+        onSelectPly: (ply) => goToPly(ply),
+        onOpenSheet: () => {
+          if (bottomSheet) bottomSheet.open('half');
+        },
+      });
+      moveStrip.update(viewPly);
+
+      layoutManager = new LayoutManager({
+        rootEl: container,
+        testMode: ctx.testMode,
+        onChange: ({ mode: layoutMode, compactBoard }) => {
+          if (boardView) boardView.setCompactMode(compactBoard);
+          if (bottomSheet) bottomSheet.setEnabled(layoutMode === 'stack');
+        },
+      });
+
       unsubSettings = ctx.settingsStore.subscribe((st) => {
         if (disposed) return;
         const th = ctx.getTheme();
@@ -319,6 +376,18 @@ export function createReplayScreen(ctx) {
         window.removeEventListener('keydown', onKeyDown);
         onKeyDown = null;
         leakTracker.trackListener(-1);
+      }
+      if (layoutManager) {
+        layoutManager.dispose();
+        layoutManager = null;
+      }
+      if (moveStrip) {
+        moveStrip.dispose();
+        moveStrip = null;
+      }
+      if (bottomSheet) {
+        bottomSheet.dispose();
+        bottomSheet = null;
       }
       if (boardView) {
         boardView.animator.clear();

@@ -287,13 +287,31 @@ export function openRoomModal(ctx, game, prefillCode = '', onlineInfo = { ok: tr
       ctx.modalRoot.querySelector('.rp-tc').textContent = tcObj ? tcObj.label : roomState.tc;
       if (errText) ctx.modalRoot.querySelector('.online-err-msg').textContent = errText;
 
-      ctx.modalRoot.querySelector('[data-copy="code"]').addEventListener('click', (ev) => {
-        navigator.clipboard?.writeText(roomState.code).catch(() => {});
-        ev.currentTarget.textContent = 'Đã chép mã ✓';
+      ctx.modalRoot.querySelector('[data-copy="code"]').addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(roomState.code);
+            if (btn) btn.textContent = 'Đã chép mã ✓';
+            return;
+          }
+        } catch {
+          // fall through
+        }
+        window.prompt('Sao chép mã phòng:', roomState.code);
       });
-      ctx.modalRoot.querySelector('[data-copy="link"]').addEventListener('click', (ev) => {
-        navigator.clipboard?.writeText(inviteUrl).catch(() => {});
-        ev.currentTarget.textContent = 'Đã chép link ✓';
+      ctx.modalRoot.querySelector('[data-copy="link"]').addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(inviteUrl);
+            if (btn) btn.textContent = 'Đã chép link ✓';
+            return;
+          }
+        } catch {
+          // fall through
+        }
+        window.prompt('Sao chép liên kết phòng:', inviteUrl);
       });
       ctx.modalRoot.querySelector('.modal-leave-room').addEventListener('click', () => cleanup(false));
       const startBtn = ctx.modalRoot.querySelector('.modal-start-room');

@@ -205,3 +205,28 @@
 - **Phase 1 Pure Formats (`6543fc8`)**: `js/storage/gameRecord.js`, `js/storage/formats.js` (JSON, PGN-like, FEN, deflate-raw base64url share links with 256 KB zip-bomb cap), `js/storage/validate.js` (strict full-rules replay & prototype-pollution guard), `dealRemainingPool` in `js/jieqi/rules.js`, `docs/FORMATS.md`, `tests/storage/formats.test.js` (5/5).
 - **Phase 2 Storage Layer (`be39a89`)**: IndexedDB `GameStore` (`js/storage/gameStore.js`) with in-memory fallback, quota error handling, 200-game prune prompt, autosave snapshots, settings schema v2 (`js/app/settings.js`), and `tests/storage/store.test.js` (3/3).
 - **Phase 3 & 4 UI, E2E & Docs**: Library (`#/library`), Archive/Share Replay (`#/play/<game>/review`, `#/replay?g=...`), Lobby Resume strip & drag-drop import, Export/Import modals, Settings > Dữ liệu controls, online auto-save, `tools/verify_saves.py` (a–j all PASS, `errs=0 warns=0`), and 3 curated screenshots in `docs/screenshots/`.
+
+
+## Upgrade Pass 2 — Mobile / Touch (`feat/mobile-touch`)
+- **Phase A (Read & Map)**: Audited layout/pointer/CSS/selectors into `docs/MOBILE_DESIGN.md`; verified baseline `54/54` Node unit tests + `12/12` Playwright suites green; captured 12 desktop baseline PNGs (`960x680`, `1180x780`, `1600x900`) into `preview/mobile_baseline/`; installed Playwright WebKit 26.5.
+- **Phase B (Test System RED Baseline, `9f5d4f2`)**: Added `js/ui/touchMath.js` stub, `tests/touch/touchMath.test.js` (8/8 RED), `tools/mobile_lib.py`, `tools/verify_mobile.py` (M1–M9), `tools/verify_touch.py` (T1–T14 + LAN + 4× CPU perf + monkey), `tools/verify_mobile_all.py`, and recorded RED baseline in `docs/MOBILE_SCOREBOARD.md`.
+- **Phase C (Implementation, C1–C9)**:
+  - **C1 (`7c67e98`)**: `viewport-fit=cover`, `--sat/--sar/--sab/--sal` + `--app-h`/`--vvh`, `js/ui/device.js`, `touch-action: none` on board, `16px` mobile inputs, `contextmenu` prevented.
+  - **C2 (`321fe0d`)**: Full `js/ui/touchMath.js` (8/8 GREEN), `js/ui/layoutManager.js`, `js/ui/moveStrip.js`, `stack`/`side` CSS Grid without DOM re-parenting, compact board `viewBox` (`73 73 904 1004`).
+  - **C3 (`c5268af`)**: `js/ui/bottomSheet.js` (`closed`/`half`/`full`, 44 px handle, pointer-capture flick snap, 40% backdrop, Esc + focus return, 3 tabs reusing existing DOM).
+  - **C4 (`baeba1d`)**: Touch drag-and-drop in `js/ui/boardView.js` (`0.55` pick radius, `1.25x` scale + `computeLiftOffset`, gold snapped ring, `chooseDropTarget` from piece center, multi-touch/cancel isolation, `0.18` coarse dots) + `js/ui/haptics.js` (40 ms throttle).
+  - **C5 (`ee5953a`)**: Bottom-sheet modals on `< 600px`, stacked 48 px result card buttons above controls bar, board-relative toasts/banners, mobile-optimized `js/fx/endFx.js`.
+  - **C6 (`eca140d`)**: `haptics`, `touchLift`, `keepAwake` settings + Settings > Trò chơi toggles + coarse-pointer `low` lobby background default.
+  - **C7 (`bcce88a`)**: `js/app/wakeLock.js` + iOS/mobile `AudioContext` gesture unlock (1-sample silent buffer + `visibilitychange`/`statechange` resume).
+  - **C8 (`41f81e3`)**: `js/app/uuid.js` (`getRandomValues` UUID v4 fallback) + clipboard fallbacks for insecure HTTP LAN contexts.
+  - **C9**: Updated `README.md` (mobile/tablet & LAN guide + updated known limits), `docs/DECISIONS.md`, and 4 optimized screenshots (`mobile_stack.png` 205 KB, `mobile_sheet.png` 96 KB, `mobile_landscape.png` 114 KB, `mobile_tablet.png` 319 KB).
+- **Phase D (Self-Evaluation Loop — 6 Rounds -> 35/35 PASS)**:
+  - **Round 1**: Caught `moveStrip.js` import (`f94f1e9`), `renderMobileControls` TDZ (`0ea8413`), `data-action` collision + closed sheet visibility (`f00e264`).
+  - **Round 2**: WebKit 10/10 PASS; Chromium M1/M4/M6/M7/M8/M9 + T1/T3/T6/T7/T8/T10/T12/T14 PASS. Fixed tablet 44 px nav buttons, height-constrained `768x1024` stack chrome, `endFx.js` coarse filters, and T2 lift-adjusted drop (`b5d7ed1`).
+  - **Round 3**: Chromium M1–M9 10/10 PASS (`M8 = 0.27%`), WebKit 10/10 PASS. Visual review spotted `844x390` landscape panel clipping & `320px` `← Sảnh` wrap; fixed landscape panel fit, `endFx` continuous `pushScale` on coarse, and T9/T11 turn sync (`785b733`).
+  - **Round 4**: T11 PASS (`[8, 12]`), `fx_p95` dropped to `66.7 ms`. Removed per-frame `generalEl.style.filter` and set coarse canvas DPR to `1` (`a2fa22f`).
+  - **Round 5**: T13 PASS (`drag_p95=16.8ms`, `fx_p95=50ms`, `idle_raf=0`). Diagnosed T9 real touch bug (horizontal scroller swallowing chip `click`); fixed with direct `pointerup` tap in `moveStrip.js` (`64c46dd`).
+  - **Round 6 (Final)**: **35/35 PASS** across Chromium M1–M9, T1–T14, and WebKit M1–M6 + WK_T1/WK_T10, 0 console errors/warnings, `M8 = 0.265%`.
+  - **Visual Rubric Scores (1–5)**:
+    - Round 3: R1=5, R2=5, R3=5, R4=4, R5=4, R6=5, R7=3 (landscape bottom card clipped), R8=5.
+    - Round 6 (Final): **R1=5, R2=5, R3=5, R4=5, R5=5, R6=5, R7=5, R8=5** (all >= 4).

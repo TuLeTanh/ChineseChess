@@ -10,6 +10,8 @@ import { buildPieceSymbolsDefs, pieceSymbolId, pieceBackSymbolId } from '../rend
 import { samePos } from '../model/moves.js';
 import { RED, BLACK } from '../model/piece.js';
 import { Animator, easeOutCubic, easeInOutCubic, lerp } from './anim.js';
+import { pickPieceAt, computeLiftOffset, chooseDropTarget } from './touchMath.js';
+import { isCoarse } from './device.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const BOARD_CX = BOARD_WIDTH / 2;
@@ -118,6 +120,8 @@ export class BoardView {
     this.onContinueFromHere = opts.onContinueFromHere || (() => {});
     /** Optional online interceptor: if set, human moves call this instead of mutating board directly. */
     this.onInterceptMove = opts.onInterceptMove || null;
+    this.isTouchLiftEnabled = opts.isTouchLiftEnabled || (() => true);
+    this.testMode = Boolean(opts.testMode);
 
     /** @type {import('../model/board.js').Board | null} */
     this.displayBoard = null;
@@ -129,6 +133,8 @@ export class BoardView {
 
     this.flipped = false;
     this.flipAngle = 0;
+    this.compactMode = false;
+    this.viewBox = { x: 0, y: 0, w: BOARD_WIDTH, h: BOARD_HEIGHT };
     this.animator = new Animator();
 
     /** @type {import('../model/moves.js').Pos | null} */
@@ -152,7 +158,9 @@ export class BoardView {
     this._onPointerDown = this._onPointerDown.bind(this);
     this._onPointerMove = this._onPointerMove.bind(this);
     this._onPointerUp = this._onPointerUp.bind(this);
+    this._onPointerCancel = this._onPointerCancel.bind(this);
     this._onPointerLeave = this._onPointerLeave.bind(this);
+    this._onWindowCancelDrag = this._onWindowCancelDrag.bind(this);
 
     this._mount();
     this.renderPieces();
@@ -418,6 +426,26 @@ export class BoardView {
     }
   }
 
+  /** Toggle compact viewBox for narrow screens (< 480 px) without recreating SVG. */
+  setCompactMode(compact) {
+    const next = Boolean(compact);
+    if (this.compactMode === next) return;
+    this.compactMode = next;
+    // Grid spans 125..925 x 125..1025, disc radius 44, margin 8 => 73..977 x 73..1077
+    this.viewBox = next
+      ? { x: 73, y: 73, w: 904, h: 1004 }
+      : { x: 0, y: 0, w: BOARD_WIDTH, h: BOARD_HEIGHT };
+    if (this.svg) {
+      this.svg.setAttribute(
+        'viewBox',
+        `${this.viewBox.x} ${this.viewBox.y} ${this.viewBox.w} ${this.viewBox.h}`
+      );
+    }
+    if (this.wrapper) {
+      this.wrapper.classList.toggle('is-compact-board', next);
+    }
+  }
+
   /** Set flipped orientation immediately (no animation, e.g. when starting AI game as Black). */
   setFlipped(flipped) {
     this.flipped = Boolean(flipped);
@@ -425,6 +453,7 @@ export class BoardView {
     this._applyFlipTransform();
     this.renderPieces();
     this._renderOverlays();
+    if (typeof this.onFlipChange === 'function') this.onFlipChange(this.flipped);
   }
 
   /** Programmatically execute a move with full animation, sound, and highlight (used by AI or online). */
@@ -545,6 +574,7 @@ export class BoardView {
     const startAngle = this.flipAngle;
     this.flipped = !this.flipped;
     const endAngle = this.flipped ? 180 : 0;
+    if (typeof this.onFlipChange === 'function') this.onFlipChange(this.flipped);
 
     this.animator.tween({
       duration: 350,
@@ -675,11 +705,12 @@ export class BoardView {
    */
   clientToBoard(clientX, clientY) {
     const rect = this.svg.getBoundingClientRect();
-    const scaleX = BOARD_WIDTH / Math.max(1, rect.width);
-    const scaleY = BOARD_HEIGHT / Math.max(1, rect.height);
+    const vb = this.viewBox || { x: 0, y: 0, w: BOARD_WIDTH, h: BOARD_HEIGHT };
+    const scaleX = vb.w / Math.max(1, rect.width);
+    const scaleY = vb.h / Math.max(1, rect.height);
     return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
+      x: vb.x + (clientX - rect.left) * scaleX,
+      y: vb.y + (clientY - rect.top) * scaleY,
     };
   }
 
@@ -764,8 +795,12 @@ export class BoardView {
     this.svg.addEventListener('pointerdown', this._onPointerDown);
     this.svg.addEventListener('pointermove', this._onPointerMove);
     this.svg.addEventListener('pointerup', this._onPointerUp);
-    this.svg.addEventListener('pointercancel', this._onPointerUp);
+    this.svg.addEventListener('pointercancel', this._onPointerCancel);
+    this.svg.addEventListener('lostpointercapture', this._onPointerCancel);
     this.svg.addEventListener('pointerleave', this._onPointerLeave);
+    this.svg.addEventListener('contextmenu', (ev) => ev.preventDefault());
+    window.addEventListener('resize', this._onWindowCancelDrag);
+    document.addEventListener('visibilitychange', this._onWindowCancelDrag);
 
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'board-toast';
@@ -1006,9 +1041,149 @@ export class BoardView {
     });
   }
 
+  _boardGeom() {
+    return {
+      cell: CELL_SIZE,
+      originX: GRID_ORIGIN_X,
+      originY: GRID_ORIGIN_Y,
+      flipped: this.flipped,
+    };
+  }
+
+  _occupiedSquares() {
+    const out = [];
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 9; x++) {
+        if (this.board.at({ x, y })) out.push({ x, y });
+      }
+    }
+    return out;
+  }
+
+  _updateDragHook(state, from = null, target = null, legal = false) {
+    if (this.testMode && typeof window !== 'undefined') {
+      window.__drag = { state, from, target, legal };
+    }
+  }
+
+  _clampPiecePos(x, y) {
+    const minX = GRID_ORIGIN_X - CELL_SIZE * 0.5;
+    const maxX = GRID_ORIGIN_X + 8 * CELL_SIZE + CELL_SIZE * 0.5;
+    const minY = GRID_ORIGIN_Y - CELL_SIZE * 0.5;
+    const maxY = GRID_ORIGIN_Y + 9 * CELL_SIZE + CELL_SIZE * 0.5;
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(minY, Math.min(maxY, y)),
+    };
+  }
+
+  _onWindowCancelDrag() {
+    if (this.drag && (document.hidden || this.drag.active)) {
+      this._cancelActiveDrag();
+    }
+  }
+
+  _cancelActiveDrag() {
+    if (!this.drag) return;
+    const drag = this.drag;
+    this.drag = null;
+    if (this.svg && this.svg.hasPointerCapture && this.svg.hasPointerCapture(drag.pointerId)) {
+      try {
+        this.svg.releasePointerCapture(drag.pointerId);
+      } catch {
+        // ignore
+      }
+    }
+    this.svg.style.cursor = 'default';
+    if (drag.el) drag.el.remove();
+    this.layerDrag.innerHTML = '';
+    this.hiddenKeys.delete(`${drag.from.x},${drag.from.y}`);
+    this._updateDragHook('idle', null, null, false);
+    this.renderPieces();
+    this._renderOverlays();
+  }
+
+  dispose() {
+    this._cancelActiveDrag();
+    this.animator.clear();
+    this.clearHintArrow();
+    window.removeEventListener('resize', this._onWindowCancelDrag);
+    document.removeEventListener('visibilitychange', this._onWindowCancelDrag);
+    if (this.testMode && typeof window !== 'undefined' && window.__drag) {
+      delete window.__drag;
+    }
+  }
+
   _onPointerDown(ev) {
-    if (ev.button !== 0 || this.locked || this.reviewActive) return;
+    if (this.locked || this.reviewActive) return;
+    const isTouch = ev.pointerType === 'touch' || ev.pointerType === 'pen';
+    if (!isTouch && ev.button !== 0) return;
+    // Multi-touch isolation: ignore non-primary pointers or any second finger during active drag
+    if (isTouch && (!ev.isPrimary || this.drag)) return;
+
     const pt = this.clientToBoard(ev.clientX, ev.clientY);
+    const geom = this._boardGeom();
+
+    if (isTouch) {
+      // Touch tap-tap: if a piece is already selected, check imprecise tap on legal target first
+      if (this.selected && this.legalTargets.length > 0) {
+        const drop = chooseDropTarget(pt.x, pt.y, geom, this.legalTargets);
+        if (drop && drop.legal && !samePos(this.selected, drop.square)) {
+          const targetPiece = this.board.at(drop.square);
+          const selectedPiece = this.board.at(this.selected);
+          if (!(targetPiece && selectedPiece && targetPiece.side === selectedPiece.side)) {
+            if (this.onInterceptMove) {
+              const fromPos = this.selected;
+              this.clearSelection();
+              this.onInterceptMove(fromPos, drop.square);
+            } else {
+              this._performMove(this.selected, drop.square, null, false);
+            }
+            return;
+          }
+        }
+      }
+
+      // Touch pick with 0.55 cell radius
+      const picked = pickPieceAt(pt.x, pt.y, geom, this._occupiedSquares(), ev.pointerType);
+      if (picked && this._canSelect(picked)) {
+        const wasSelected = samePos(this.selected, picked);
+        const piece = this.board.at(picked);
+        try {
+          this.svg.setPointerCapture(ev.pointerId);
+        } catch {
+          // ignore
+        }
+        this.onSelectPiece(picked);
+        this.drag = {
+          pointerId: ev.pointerId,
+          pointerType: ev.pointerType,
+          isTouch: true,
+          from: picked,
+          piece,
+          startClientX: ev.clientX,
+          startClientY: ev.clientY,
+          currentBoard: pt,
+          pieceBoard: this.logicalToBoard(picked),
+          active: false,
+          wasSelected,
+          el: null,
+          hoverTarget: null,
+        };
+        this._updateDragHook('pending', picked, null, false);
+        if (!wasSelected) {
+          this._selectPos(picked);
+        }
+        return;
+      }
+
+      if (this.selected) {
+        this.onIllegalMove();
+      }
+      return;
+    }
+
+    // ---- Desktop mouse path (unchanged) ----
     const pos = this.hitTest(pt.x, pt.y);
     if (!pos) {
       this.clearSelection();
@@ -1041,11 +1216,14 @@ export class BoardView {
       this.onSelectPiece(pos);
       this.drag = {
         pointerId: ev.pointerId,
+        pointerType: ev.pointerType || 'mouse',
+        isTouch: false,
         from: pos,
         piece,
         startClientX: ev.clientX,
         startClientY: ev.clientY,
         currentBoard: pt,
+        pieceBoard: pt,
         active: false,
         wasSelected,
         el: null,
@@ -1066,30 +1244,65 @@ export class BoardView {
     if (this.drag && ev.pointerId === this.drag.pointerId) {
       this.drag.currentBoard = pt;
       const dist = Math.hypot(ev.clientX - this.drag.startClientX, ev.clientY - this.drag.startClientY);
-      if (!this.drag.active && dist > DRAG_THRESHOLD_PX) {
+      const threshold = this.drag.isTouch ? 6 : DRAG_THRESHOLD_PX;
+      const dragScale = this.drag.isTouch ? 1.25 : 1.1;
+
+      const computePiecePt = () => {
+        if (!this.drag.isTouch) return pt;
+        const geom = this._boardGeom();
+        const liftCells = this.isTouchLiftEnabled() ? 0.9 : 0;
+        const lift = computeLiftOffset(pt.y, geom, liftCells, this.viewBox.y);
+        return this._clampPiecePos(pt.x, pt.y - lift);
+      };
+
+      if (!this.drag.active && dist > threshold) {
         this.drag.active = true;
         this.hiddenKeys.add(`${this.drag.from.x},${this.drag.from.y}`);
         this.renderPieces();
-        this.drag.el = this._createPieceGroup(this.drag.piece, pt.x, pt.y, 1.1, 1, true);
+        const pPt = computePiecePt();
+        this.drag.pieceBoard = pPt;
+        this.drag.el = this._createPieceGroup(this.drag.piece, pPt.x, pPt.y, dragScale, 1, true);
+        if (this.drag.isTouch) {
+          this.drag.el.setAttribute('filter', 'drop-shadow(0px 10px 8px rgba(0,0,0,0.46))');
+        }
         this.layerDrag.appendChild(this.drag.el);
         this.svg.style.cursor = 'grabbing';
+        this._updateDragHook('dragging', this.drag.from, null, false);
+        this._renderOverlays();
       }
       if (this.drag.active && this.drag.el) {
-        this._positionPieceGroup(this.drag.el, pt.x, pt.y, 1.1, 1);
-        const target = this.hitTest(pt.x, pt.y);
-        this.drag.hoverTarget =
-          target && !samePos(target, this.drag.from) && this._isLegalTarget(target) ? target : null;
-        this._renderOverlays();
+        const pPt = computePiecePt();
+        this.drag.pieceBoard = pPt;
+        this._positionPieceGroup(this.drag.el, pPt.x, pPt.y, dragScale, 1);
+        let nextTarget = null;
+        if (this.drag.isTouch) {
+          const drop = chooseDropTarget(pPt.x, pPt.y, this._boardGeom(), this.legalTargets);
+          nextTarget = drop && drop.legal && !samePos(drop.square, this.drag.from) ? drop.square : null;
+        } else {
+          const target = this.hitTest(pPt.x, pPt.y);
+          nextTarget = target && !samePos(target, this.drag.from) && this._isLegalTarget(target) ? target : null;
+        }
+        if (!samePos(nextTarget, this.drag.hoverTarget)) {
+          this.drag.hoverTarget = nextTarget;
+          this._updateDragHook('dragging', this.drag.from, nextTarget, Boolean(nextTarget));
+          this._renderOverlays();
+        }
       }
       return;
     }
 
+    if (ev.pointerType === 'touch') return;
     const pos = this.hitTest(pt.x, pt.y);
     if (!samePos(pos, this.hovered)) {
       this.hovered = pos;
       this.svg.style.cursor = pos && this._canSelect(pos) ? 'pointer' : 'default';
       this._renderOverlays();
     }
+  }
+
+  _onPointerCancel(ev) {
+    if (!this.drag || ev.pointerId !== this.drag.pointerId) return;
+    this._cancelActiveDrag();
   }
 
   _onPointerUp(ev) {
@@ -1100,6 +1313,7 @@ export class BoardView {
       this.svg.releasePointerCapture(ev.pointerId);
     }
     this.svg.style.cursor = 'default';
+    this._updateDragHook('idle', null, null, false);
 
     if (!drag.active) {
       if (drag.wasSelected) {
@@ -1109,20 +1323,40 @@ export class BoardView {
     }
 
     const pt = this.clientToBoard(ev.clientX, ev.clientY);
-    const target = this.hitTest(pt.x, pt.y);
+    let piecePt = pt;
+    let target = null;
+    let isLegal = false;
+
+    if (drag.isTouch) {
+      const geom = this._boardGeom();
+      const liftCells = this.isTouchLiftEnabled() ? 0.9 : 0;
+      const lift = computeLiftOffset(pt.y, geom, liftCells, this.viewBox.y);
+      piecePt = this._clampPiecePos(pt.x, pt.y - lift);
+      const drop = chooseDropTarget(piecePt.x, piecePt.y, geom, this.legalTargets);
+      if (drop && drop.legal && !samePos(drop.square, drag.from)) {
+        target = drop.square;
+        isLegal = true;
+      } else if (drop) {
+        target = drop.square;
+      }
+    } else {
+      target = this.hitTest(pt.x, pt.y);
+      isLegal = Boolean(target && !samePos(target, drag.from) && this._isLegalTarget(target));
+    }
+
     const originKey = `${drag.from.x},${drag.from.y}`;
 
     if (drag.el) drag.el.remove();
     this.layerDrag.innerHTML = '';
 
-    if (target && !samePos(target, drag.from) && this._isLegalTarget(target)) {
+    if (isLegal && target) {
       this.hiddenKeys.delete(originKey);
       if (this.onInterceptMove) {
         this.clearSelection();
         this.renderPieces();
         this.onInterceptMove(drag.from, target);
       } else {
-        this._performMove(drag.from, target, pt, true);
+        this._performMove(drag.from, target, piecePt, true);
       }
     } else {
       // Illegal drop: spring back (160 ms) + tiny horizontal shake (2 cycles, 4 px, 140 ms)
@@ -1131,7 +1365,8 @@ export class BoardView {
         this.onIllegalMove();
       }
       const originPt = this.logicalToBoard(drag.from);
-      const spring = this._createPieceGroup(drag.piece, pt.x, pt.y, 1.1, 1, true);
+      const startScale = drag.isTouch ? 1.25 : 1.1;
+      const spring = this._createPieceGroup(drag.piece, piecePt.x, piecePt.y, startScale, 1, true);
       this.layerAnim.appendChild(spring);
       this.animator.tween({
         duration: 160,
@@ -1139,9 +1374,9 @@ export class BoardView {
         onUpdate: (e) => {
           this._positionPieceGroup(
             spring,
-            lerp(pt.x, originPt.x, e),
-            lerp(pt.y, originPt.y, e),
-            lerp(1.1, 1.0, e),
+            lerp(piecePt.x, originPt.x, e),
+            lerp(piecePt.y, originPt.y, e),
+            lerp(startScale, 1.0, e),
             1
           );
         },
@@ -1302,12 +1537,13 @@ export class BoardView {
             this.layerSelection.appendChild(q);
           }
         } else {
-          // Empty target: gold dot (r = 0.14 cell = 14, #F2C14E at 0.9 opacity, faint dark outline)
+          // Empty target: gold dot (r = 0.18 cell on coarse pointers, 0.14 on fine)
+          const baseDotR = isCoarse() ? 18 : 14;
           this.layerSelection.appendChild(
             svgEl('circle', {
               cx: tp.x,
               cy: tp.y,
-              r: isCoveredSel ? 17 : 14,
+              r: isCoveredSel ? Math.max(17, baseDotR) : baseDotR,
               fill: '#F2C14E',
               'fill-opacity': 0.9,
               stroke: '#2A1A0E',
@@ -1336,16 +1572,32 @@ export class BoardView {
 
     if (this.drag && this.drag.active && this.drag.hoverTarget) {
       const tp = this.logicalToBoard(this.drag.hoverTarget);
-      this.layerSelection.appendChild(
-        svgEl('path', {
-          d: cornerBracketsPath(tp.x, tp.y),
-          fill: 'none',
-          stroke: '#F2C14E',
-          'stroke-width': 2.8,
-          'stroke-linecap': 'round',
-          opacity: 0.95,
-        })
-      );
+      if (this.drag.isTouch) {
+        // Bright gold snapped drop target ring (r = 0.5 cell = 50)
+        this.layerSelection.appendChild(
+          svgEl('circle', {
+            cx: tp.x,
+            cy: tp.y,
+            r: 50,
+            fill: 'rgba(242, 193, 78, 0.14)',
+            stroke: '#F2C14E',
+            'stroke-width': 4,
+            opacity: 0.98,
+            class: 'drag-snap-ring',
+          })
+        );
+      } else {
+        this.layerSelection.appendChild(
+          svgEl('path', {
+            d: cornerBracketsPath(tp.x, tp.y),
+            fill: 'none',
+            stroke: '#F2C14E',
+            'stroke-width': 2.8,
+            'stroke-linecap': 'round',
+            opacity: 0.95,
+          })
+        );
+      }
     }
 
     // 5. Soft blue hint arrow (when active)

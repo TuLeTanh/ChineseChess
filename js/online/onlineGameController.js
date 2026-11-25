@@ -85,7 +85,8 @@ export class OnlineGameBridge {
       this.conn?.send('game.draw.respond', { accept: false });
     });
 
-    this.stageEl.append(this.disconnectBanner, this.drawToast, this.reconnectOverlay);
+    const host = this.stageEl.querySelector('.game-board-host') || this.stageEl;
+    host.append(this.disconnectBanner, this.drawToast, this.reconnectOverlay);
 
     // Online action bar in side panel (Xin hòa / Đầu hàng)
     this.onlineActions = document.createElement('div');
@@ -390,7 +391,7 @@ export class OnlineGameBridge {
     const modalRoot = this.ctx.modalRoot;
     modalRoot.hidden = false;
     modalRoot.innerHTML = `
-      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="online-go-title">
+      <div class="modal-backdrop is-gameover-backdrop" role="dialog" aria-modal="true" aria-labelledby="online-go-title">
         <div class="modal-card modal-gameover is-kind-${kind}">
           <h3 id="online-go-title"></h3>
           <p class="gameover-stats">Số nước: ${plies}</p>

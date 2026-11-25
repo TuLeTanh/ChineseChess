@@ -272,7 +272,7 @@ export class SidePanel {
 
     this.modalRoot.hidden = false;
     this.modalRoot.innerHTML = `
-      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="gameover-title">
+      <div class="modal-backdrop is-gameover-backdrop" role="dialog" aria-modal="true" aria-labelledby="gameover-title">
         <div class="modal-card modal-gameover is-kind-${kind}">
           ${swordsEmblem}
           <h3 id="gameover-title">${resultText}</h3>
@@ -364,6 +364,25 @@ export class SidePanel {
     this._renderTimeline();
     this._syncReviewControls();
     this._renderPoolPanel();
+
+    // Mirror one-line status text into player strips for compact mobile stack layout
+    const statusText = resultText
+      ? resultText
+      : (!isReview && status === GameStatus.Check) || (isReview && snap.gaveCheck)
+        ? 'Chiếu tướng!'
+        : this.aiThinking
+          ? 'Máy đang nghĩ…'
+          : viewedSide === RED
+            ? 'Lượt của Đỏ'
+            : 'Lượt của Đen';
+    const isCheck = statusText === 'Chiếu tướng!';
+    for (const el of this.container.querySelectorAll('.strip-status-line')) {
+      el.textContent = statusText;
+      el.classList.toggle('is-check', isCheck);
+    }
+    if (typeof this.callbacks.onPanelUpdated === 'function') {
+      this.callbacks.onPanelUpdated({ viewPly: this.viewPly, status, isReview, canUndo, undoDisallowed, resultText });
+    }
   }
 
   _syncAiCardsAndButtons(disableAiActions = false) {
@@ -446,41 +465,31 @@ export class SidePanel {
 
     this.container.innerHTML = `
       <div class="variant-header-pill" hidden></div>
-      <div class="mode-bar">
-        <div class="segmented" role="tablist" aria-label="Chế độ chơi">
-          <button type="button" class="seg-btn" data-mode="pvp">Hai người</button>
-          <button type="button" class="seg-btn" data-mode="ai">Đấu máy</button>
-        </div>
-        <div class="ai-config-row" hidden>
-          <div class="ai-side-pick">
-            <span class="ai-label">Bạn cầm:</span>
-            <button type="button" class="mini-seg-btn" data-pside="red">Đỏ</button>
-            <button type="button" class="mini-seg-btn" data-pside="black">Đen</button>
-          </div>
-          <select class="ai-level-select" aria-label="Cấp độ máy">${levelOptions}</select>
-        </div>
-        <div class="engine-row" hidden>
-          <span class="ai-label">Máy:</span>
-          <div class="engine-pick">
-            <button type="button" class="mini-seg-btn" data-engine="pikafish">Pikafish</button>
-            <button type="button" class="mini-seg-btn" data-engine="js">Nội bộ (JS)</button>
-          </div>
-        </div>
-        <div class="engine-hint" hidden>Chạy tools/server.py và tools/setup_engine.py để dùng Pikafish</div>
-      </div>
 
       <section class="player-card player-card-black" data-side="black">
         <div class="player-header">
           <div class="player-avatar avatar-black">將</div>
           <div class="player-meta">
-            <div class="player-name">Đen</div>
+            <div class="player-name" data-nowrap="1">Đen</div>
             <div class="player-sub">Quân Đen</div>
           </div>
-          <div class="player-clock">10:00</div>
+          <div class="strip-status-line" data-testid="strip-status-black" aria-live="polite"></div>
+          <div class="player-clock" data-nowrap="1">10:00</div>
         </div>
         <div class="captured-tray" data-tray="black" aria-label="Quân Đỏ bị Đen ăn"></div>
       </section>
 
+      <div class="sheet-host" data-testid="bottom-sheet" data-state="closed" role="dialog" aria-modal="false" aria-label="Nước đi và tùy chọn">
+        <div class="sheet-handle" data-testid="sheet-handle" tabindex="0" role="button" aria-label="Kéo để mở hoặc đóng bảng">
+          <span class="sheet-handle-pill"></span>
+        </div>
+        <div class="sheet-tabs" data-testid="sheet-tabs" role="tablist" aria-label="Mục bảng">
+          <button type="button" role="tab" class="sheet-tab is-active" data-stab="moves" aria-selected="true">Nước đi</button>
+          <button type="button" role="tab" class="sheet-tab" data-stab="pool" aria-selected="false" ${this.isJieqi ? '' : 'hidden'}>Quân úp</button>
+          <button type="button" role="tab" class="sheet-tab" data-stab="options" aria-selected="false">Tùy chọn</button>
+        </div>
+        <div class="sheet-scroll-body">
+          <div class="sheet-pane is-active" data-spane="moves">
       <section class="move-list-section" aria-label="Lịch sử nước đi">
         <div class="move-list-header">
           <span class="col-num">#</span>
@@ -508,21 +517,33 @@ export class SidePanel {
           <button type="button" class="rev-btn" data-rev="play" title="Tự động phát / Tạm dừng (Space)" aria-label="Tự động phát">⏯</button>
         </div>
       </section>
-
-      <section class="jieqi-pool-panel" aria-label="Quân úp còn lại" hidden></section>
-
-      <section class="player-card player-card-red" data-side="red">
-        <div class="player-header">
-          <div class="player-avatar avatar-red">帥</div>
-          <div class="player-meta">
-            <div class="player-name">Đỏ</div>
-            <div class="player-sub">Quân Đỏ</div>
           </div>
-          <div class="player-clock">10:00</div>
+          <div class="sheet-pane" data-spane="pool">
+      <section class="jieqi-pool-panel" aria-label="Quân úp còn lại" hidden></section>
+          </div>
+          <div class="sheet-pane" data-spane="options">
+      <div class="mode-bar">
+        <div class="segmented" role="tablist" aria-label="Chế độ chơi">
+          <button type="button" class="seg-btn" data-mode="pvp">Hai người</button>
+          <button type="button" class="seg-btn" data-mode="ai">Đấu máy</button>
         </div>
-        <div class="captured-tray" data-tray="red" aria-label="Quân Đen bị Đỏ ăn"></div>
-      </section>
-
+        <div class="ai-config-row" hidden>
+          <div class="ai-side-pick">
+            <span class="ai-label">Bạn cầm:</span>
+            <button type="button" class="mini-seg-btn" data-pside="red">Đỏ</button>
+            <button type="button" class="mini-seg-btn" data-pside="black">Đen</button>
+          </div>
+          <select class="ai-level-select" aria-label="Cấp độ máy">${levelOptions}</select>
+        </div>
+        <div class="engine-row" hidden>
+          <span class="ai-label">Máy:</span>
+          <div class="engine-pick">
+            <button type="button" class="mini-seg-btn" data-engine="pikafish">Pikafish</button>
+            <button type="button" class="mini-seg-btn" data-engine="js">Nội bộ (JS)</button>
+          </div>
+        </div>
+        <div class="engine-hint" hidden>Chạy tools/server.py và tools/setup_engine.py để dùng Pikafish</div>
+      </div>
       <div class="status-block">
         <div class="status-strip">
           <div class="turn-indicator">
@@ -555,6 +576,22 @@ export class SidePanel {
         <input type="range" class="volume-slider" min="0" max="100" value="70" aria-label="Âm lượng">
         <span class="volume-value">70%</span>
       </div>
+          </div>
+        </div>
+      </div>
+
+      <section class="player-card player-card-red" data-side="red">
+        <div class="player-header">
+          <div class="player-avatar avatar-red">帥</div>
+          <div class="player-meta">
+            <div class="player-name" data-nowrap="1">Đỏ</div>
+            <div class="player-sub">Quân Đỏ</div>
+          </div>
+          <div class="strip-status-line" data-testid="strip-status-red" aria-live="polite"></div>
+          <div class="player-clock" data-nowrap="1">10:00</div>
+        </div>
+        <div class="captured-tray" data-tray="red" aria-label="Quân Đen bị Đỏ ăn"></div>
+      </section>
     `;
 
     this.variantHeaderEl = this.container.querySelector('.variant-header-pill');

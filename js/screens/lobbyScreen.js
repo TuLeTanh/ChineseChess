@@ -14,6 +14,7 @@ import { openSettingsModal } from '../ui/settingsModal.js';
 import { openImportModal, formatRelativeDateVi } from '../ui/saveModals.js';
 import { variantToRouteGame } from '../storage/gameRecord.js';
 import { leakTracker } from '../app/router.js';
+import { isCoarse } from '../ui/device.js';
 
 const APP_VERSION = 'v1.0.0';
 const FLIP_POOL = ['chariot', 'horse', 'cannon', 'elephant', 'advisor', 'soldier'];
@@ -148,10 +149,11 @@ export function createLobbyScreen(ctx) {
         </div>
       `;
 
+      const effectiveBgQuality = isCoarse() && s.bgQuality === 'high' ? 'low' : s.bgQuality;
       bg = new LobbyBackground({
         container,
         theme,
-        quality: s.bgQuality,
+        quality: effectiveBgQuality,
         seed,
       });
 

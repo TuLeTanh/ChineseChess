@@ -7,6 +7,7 @@
  */
 import { PROTOCOL_VERSION, sanitizeNickname } from './protocol.js';
 import { leakTracker } from '../app/router.js';
+import { generateUuidV4 } from '../app/uuid.js';
 
 const GUEST_ID_KEY = 'xq_guest_id_v1';
 
@@ -14,14 +15,11 @@ export function getOrCreateGuestId() {
   try {
     const existing = window.localStorage.getItem(GUEST_ID_KEY);
     if (existing && /^[a-zA-Z0-9_-]{8,64}$/.test(existing)) return existing;
-    const id =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    const id = generateUuidV4();
     window.localStorage.setItem(GUEST_ID_KEY, id);
     return id;
   } catch {
-    return `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    return generateUuidV4();
   }
 }
 

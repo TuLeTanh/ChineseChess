@@ -46,12 +46,10 @@ export function variantToRouteGame(variant) {
   return variant === 'jieqi' || variant === 'coup' ? 'coup' : 'cotuong';
 }
 
+import { generateUuidV4 } from '../app/uuid.js';
+
 export function generateRecordId() {
-  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-  const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-a${hex().slice(1)}-${hex()}${hex()}${hex()}`;
+  return generateUuidV4();
 }
 
 export function sanitizePlayerName(raw, fallback = 'Kỳ thủ') {

@@ -4,6 +4,8 @@
  * gracefully falls back to defaults on corrupt JSON or unavailable storage.
  */
 
+import { generateUuidV4 } from './uuid.js';
+
 export const SETTINGS_KEY = 'xq_settings_v1';
 
 const LEGACY_KEYS = {
@@ -17,11 +19,7 @@ const LEGACY_KEYS = {
 };
 
 function generateGuestId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-a${hex().slice(1)}-${hex()}${hex()}${hex()}`;
+  return generateUuidV4();
 }
 
 function defaultNickname() {
@@ -63,6 +61,9 @@ export function createDefaultSettings() {
     guestId: generateGuestId(),
     theme: 'go-lim',
     bgQuality: 'high', // 'high' | 'low' | 'off'
+    haptics: true,
+    touchLift: true,
+    keepAwake: true,
     audio: {
       volume: 0.7,
       muted: false,
@@ -137,6 +138,9 @@ function normalizeSettings(raw) {
         : def.guestId,
     theme: raw.theme === 'ngoc-bich' ? 'ngoc-bich' : 'go-lim',
     bgQuality: ['high', 'low', 'off'].includes(raw.bgQuality) ? raw.bgQuality : def.bgQuality,
+    haptics: typeof raw.haptics === 'boolean' ? raw.haptics : true,
+    touchLift: typeof raw.touchLift === 'boolean' ? raw.touchLift : true,
+    keepAwake: typeof raw.keepAwake === 'boolean' ? raw.keepAwake : true,
     audio: {
       volume:
         typeof raw.audio?.volume === 'number' && Number.isFinite(raw.audio.volume)

@@ -61,6 +61,7 @@ export class GameController {
     this.gameStartFen = opts.initialFen || (this.variant.id === 'coup' ? '' : START_FEN);
     this.theme = opts.theme;
     this.sfx = opts.sfx;
+    this.haptics = opts.haptics || null;
     this.aiClient = opts.aiClient;
     this.pikafishClient = opts.pikafishClient;
     this.testMode = Boolean(opts.testMode);
@@ -537,6 +538,9 @@ export class GameController {
     const isSpecial = enforceRules && (this.lastStatus === GameStatus.Check || isMateOrStale || isDraw);
 
     this.sfx.play(move.captured ? 'capture' : 'move', 0, { skipVoice: isSpecial });
+    if (this.haptics) {
+      this.haptics.trigger(move.captured ? 'capture' : 'drop', { inReview: this.isReviewing() });
+    }
     if (move.wasCovered && move.reveal && typeof this.sfx.playReveal === 'function') {
       this.sfx.playReveal(move.reveal.type);
     }
@@ -544,16 +548,19 @@ export class GameController {
     if (enforceRules) {
       if (this.lastStatus === GameStatus.Check) {
         this.sfx.play('check', 0);
+        if (this.haptics) this.haptics.trigger('check', { inReview: this.isReviewing() });
       } else if (isMateOrStale) {
         const winnerSide = this.board.sideToMove === RED ? BLACK : RED;
         const isHumanLoss = this.mode === 'ai' && winnerSide !== this.playerSide;
         if (!isHumanLoss) {
           this.sfx.play('checkmate', 0);
         }
+        if (this.haptics) this.haptics.trigger('gameover', { inReview: this.isReviewing() });
         this.onPersistHook({ event: 'gameover', status: this.lastStatus, isResign: false });
         this.triggerEndCinematic(this.lastStatus, false);
       } else if (isDraw) {
         this.sfx.play('draw', 0);
+        if (this.haptics) this.haptics.trigger('gameover', { inReview: this.isReviewing() });
         this.onPersistHook({ event: 'gameover', status: this.lastStatus, isResign: false });
         this.triggerEndCinematic(this.lastStatus, false);
       }
@@ -732,6 +739,7 @@ export class GameController {
     if (this.boardView) this.boardView.setLocked(true);
     if (this.sidePanel) this.sidePanel.update(this.lastStatus);
     this.onPersistHook({ event: 'gameover', status: this.lastStatus, isResign: true });
+    if (this.haptics) this.haptics.trigger('gameover');
     this.triggerEndCinematic(this.lastStatus, true);
   }
 

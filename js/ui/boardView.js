@@ -766,6 +766,7 @@ export class BoardView {
     this.svg.addEventListener('pointerup', this._onPointerUp);
     this.svg.addEventListener('pointercancel', this._onPointerUp);
     this.svg.addEventListener('pointerleave', this._onPointerLeave);
+    this.svg.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'board-toast';

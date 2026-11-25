@@ -15,7 +15,9 @@ import {
   buildAnalysisReport,
   analysisKey,
   formatEvalScore,
+  selectAnalysisPositionData,
 } from '../../js/analysis/math.js';
+import { Board } from '../../js/model/board.js';
 import { runGameAnalysis } from '../../js/analysis/analyzer.js';
 import { GameStore, MAX_SAVED_ANALYSES } from '../../js/storage/gameStore.js';
 import { START_FEN } from '../../js/model/fen.js';
@@ -201,4 +203,53 @@ test('5. GameStore analysis persistence, deterministic key, cap enforcement, and
 
   await store.clearAll();
   assert.equal((await store.listAnalyses()).length, 0);
+});
+
+test('6. Item 1: selectAnalysisPositionData arrows always originate from occupied sideToMove piece for every ply', () => {
+  const moves = ['h2e2', 'h9g7', 'h0g2', 'i9h9', 'i0h0', 'b7e7', 'b0c2', 'b9c7', 'h0h7', 'h9h7'];
+  const bestByPly = ['h2e2', 'h9g7', 'h0g2', 'i9h9', 'i0h0', 'b7e7', 'b0c2', 'b9c7', 'h0h6', 'h9h7', 'a0a1'];
+  const cpRedByPly = [20, 20, 20, 20, 20, 20, 20, 20, 25, -480, -480];
+  const positions = cpRedByPly.map((cp, ply) => ({
+    ply,
+    bestmove: bestByPly[ply],
+    scoreRed: { cp },
+    lines: [{ move: bestByPly[ply], scoreRed: { cp }, pv: [bestByPly[ply]] }],
+  }));
+  const report = buildAnalysisReport(positions, moves);
+  const result = { positions, moveAnnotations: report.moveAnnotations };
+
+  // Build board at every ply 0..10 and verify normal stepping arrows
+  const b = Board.fromFen(START_FEN);
+  const FILES = 'abcdefghi';
+  for (let ply = 0; ply <= moves.length; ply++) {
+    const data = selectAnalysisPositionData(result, ply, null);
+    assert.ok(data && data.boardPly === ply);
+    for (const a of data.arrows) {
+      const pc = b.at(a.from);
+      assert.ok(pc, `Ply ${ply}: arrow ${a.move} starts on empty square`);
+      assert.equal(pc.side, b.sideToMove, `Ply ${ply}: arrow ${a.move} starts on wrong side`);
+    }
+    if (ply < moves.length) {
+      const m = moves[ply];
+      b.applyMove({ x: FILES.indexOf(m[0]), y: 9 - Number(m[1]) }, { x: FILES.indexOf(m[2]), y: 9 - Number(m[3]) });
+    }
+  }
+
+  // Selecting blunder ply 9 displays ply 8 (before h0h7) with blue (h0h6) + red (h0h7), both on Red Chariot at h0
+  const b8 = Board.fromFen(START_FEN);
+  for (let i = 0; i < 8; i++) {
+    const m = moves[i];
+    b8.applyMove({ x: FILES.indexOf(m[0]), y: 9 - Number(m[1]) }, { x: FILES.indexOf(m[2]), y: 9 - Number(m[3]) });
+  }
+  const focus = selectAnalysisPositionData(result, 8, 9);
+  assert.equal(focus.isMistakeFocus, true);
+  assert.equal(focus.arrows.length, 2);
+  assert.equal(focus.arrows[0].kind, 'best');
+  assert.equal(focus.arrows[0].move, 'h0h6');
+  assert.equal(focus.arrows[1].kind, 'played');
+  assert.equal(focus.arrows[1].move, 'h0h7');
+  for (const a of focus.arrows) {
+    const pc = b8.at(a.from);
+    assert.ok(pc && pc.side === 'red' && pc.kind === 'chariot');
+  }
 });

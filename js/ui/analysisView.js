@@ -12,6 +12,8 @@ import {
   formatEvalScore,
   MOVE_CLASSES,
   analysisKey,
+  isMistakeClass,
+  selectAnalysisPositionData,
 } from '../analysis/math.js';
 import {
   ANALYSIS_PRESETS,
@@ -84,6 +86,7 @@ export class AnalysisPanel {
     this.result = null;
     this.running = null;
     this.viewPly = this.moves.length;
+    this.focusedMistakePly = null;
     this.showArrows = true;
     this.mistakesOnly = false;
     this.disposed = false;
@@ -166,6 +169,11 @@ export class AnalysisPanel {
     };
     this.graphSvg.addEventListener('pointerdown', (ev) => {
       if (!this.result) return;
+      const dot = ev.target.closest('circle[data-mistake-ply]');
+      if (dot) {
+        this.selectMove(Number(dot.dataset.mistakePly));
+        return;
+      }
       this._scrubbing = true;
       try { this.graphSvg.setPointerCapture(ev.pointerId); } catch {}
       this.onSelectPly(plyFromX(ev.clientX), { isScrub: true });
@@ -342,8 +350,29 @@ export class AnalysisPanel {
     }
   }
 
-  syncPly(ply) {
+  /**
+   * Select a played move (1..N) from mistake list, move chip, or graph dot.
+   * If that move is mistake/blunder/missed_mate, displays position BEFORE the move (ply - 1)
+   * with blue (best) + red (played) arrows. Otherwise displays position after the move (ply).
+   */
+  selectMove(ply, opts = {}) {
+    if (this.result && ply > 0) {
+      const ann = (this.result.moveAnnotations || []).find((a) => a.ply === ply);
+      if (ann && isMistakeClass(ann.cls)) {
+        this.focusedMistakePly = ply;
+        this.onSelectPly(ply - 1, { ...opts, keepMistakeFocus: true });
+        return;
+      }
+    }
+    this.focusedMistakePly = null;
+    this.onSelectPly(ply, opts);
+  }
+
+  syncPly(ply, opts = {}) {
     this.viewPly = ply;
+    if (!opts.keepMistakeFocus || this.focusedMistakePly !== ply + 1) {
+      this.focusedMistakePly = null;
+    }
     if (!this.result) return;
     const pos = this.result.positions.find((p) => p.ply === ply) || this.result.positions[this.result.positions.length - 1];
     if (pos && this.evalBar) {
@@ -384,7 +413,7 @@ export class AnalysisPanel {
         const pt = pts.find((p) => p.ply === a.ply);
         if (!pt) return '';
         const color = a.cls === 'mistake' ? '#FB923C' : '#F87171';
-        return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="2.8" fill="${color}"/>`;
+        return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="4.2" fill="${color}" data-mistake-ply="${a.ply}" style="cursor:pointer"/>`;
       })
       .join('');
 
@@ -497,7 +526,7 @@ export class AnalysisPanel {
     `;
 
     this.summaryCard.querySelectorAll('[data-jump-ply]').forEach((btn) => {
-      btn.addEventListener('click', () => this.onSelectPly(Number(btn.dataset.jumpPly)));
+      btn.addEventListener('click', () => this.selectMove(Number(btn.dataset.jumpPly)));
     });
   }
 
@@ -543,28 +572,8 @@ export class AnalysisPanel {
       this.boardView.setAnalysisArrows([]);
       return;
     }
-    const arrows = [];
-    // If viewing after a blunder/mistake, show played move in red & best move before it in blue
-    const ann = ply > 0 ? this.result.moveAnnotations.find((a) => a.ply === ply) : null;
-    if (ann && (ann.cls === 'blunder' || ann.cls === 'missed_mate' || ann.cls === 'mistake')) {
-      const played = parseIccs(ann.move);
-      if (played) arrows.push({ ...played, color: '#EF4444', opacity: 0.85 });
-      const best = parseIccs(ann.bestMove);
-      if (best && ann.bestMove !== ann.move) arrows.push({ ...best, color: '#38BDF8', opacity: 0.9 });
-    } else {
-      const pos = this.result.positions.find((p) => p.ply === ply);
-      if (pos && Array.isArray(pos.lines)) {
-        if (pos.lines[0]?.move) {
-          const m1 = parseIccs(pos.lines[0].move);
-          if (m1) arrows.push({ ...m1, color: '#38BDF8', opacity: 0.9 });
-        }
-        if (pos.lines[1]?.move) {
-          const m2 = parseIccs(pos.lines[1].move);
-          if (m2) arrows.push({ ...m2, color: '#94A3B8', opacity: 0.65 });
-        }
-      }
-    }
-    this.boardView.setAnalysisArrows(arrows);
+    const data = selectAnalysisPositionData(this.result, ply, this.focusedMistakePly);
+    this.boardView.setAnalysisArrows(data ? data.arrows : []);
   }
 
   dispose() {

@@ -159,7 +159,7 @@ export function createReplayScreen(ctx) {
       const currentViewFen = () => board.snapshotAt(viewPly).fen;
       const currentViewPool = () => (isJieqi ? board.getPool(viewPly) : null);
 
-      const goToPly = (target, { isScrub = false, fromAuto = false } = {}) => {
+      const goToPly = (target, { isScrub = false, fromAuto = false, keepMistakeFocus = false } = {}) => {
         if (disposed) return;
         if (!fromAuto) stopAuto();
         const total = board.history.length;
@@ -184,9 +184,9 @@ export function createReplayScreen(ctx) {
         });
         sidePanel.setReviewState({ viewPly, hasNewMoves: false, autoPlaying: Boolean(autoTimer), skipScroll: isScrub });
         if (moveStrip) moveStrip.update(viewPly);
-        if (analysisPanel) analysisPanel.syncPly(viewPly);
+        if (analysisPanel) analysisPanel.syncPly(viewPly, { keepMistakeFocus });
         if (ctx.testMode && typeof window !== 'undefined') {
-          window.__view = { ply: viewPly, total, fen: snap.fen };
+          window.__view = { ply: viewPly, total, fen: snap.fen, sideToMove: viewBoard.sideToMove };
         }
       };
 
@@ -253,7 +253,13 @@ export function createReplayScreen(ctx) {
         onAiLevelChange: () => {},
         onHint: () => {},
         onResign: () => {},
-        onSelectPly: (ply, opts) => goToPly(ply, opts),
+        onSelectPly: (ply, opts) => {
+          if (analysisPanel && !opts?.isScrub) {
+            analysisPanel.selectMove(ply, opts);
+          } else {
+            goToPly(ply, opts);
+          }
+        },
         onStepPly: (delta) => goToPly(viewPly + delta),
         onToggleAutoPlay: () => toggleAuto(),
         onToggleMute: () => {

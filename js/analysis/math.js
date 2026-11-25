@@ -285,3 +285,116 @@ export function formatEvalScore(scoreRed) {
   if (Math.abs(pawns) < 0.05) return '0.0';
   return `${pawns > 0 ? '+' : ''}${pawns.toFixed(1)}`;
 }
+
+const ICCS_FILES = 'abcdefghi';
+
+export function parseIccsMove(str) {
+  if (!str || typeof str !== 'string' || str.length !== 4) return null;
+  const fx = ICCS_FILES.indexOf(str[0]);
+  const fy = 9 - Number(str[1]);
+  const tx = ICCS_FILES.indexOf(str[2]);
+  const ty = 9 - Number(str[3]);
+  if (fx < 0 || tx < 0 || Number.isNaN(fy) || Number.isNaN(ty)) return null;
+  return { from: { x: fx, y: fy }, to: { x: tx, y: ty } };
+}
+
+export function isMistakeClass(cls) {
+  return cls === 'mistake' || cls === 'blunder' || cls === 'missed_mate';
+}
+
+/**
+ * Select consistent arrow + best-move card data for the currently displayed board position.
+ * Invariant: EVERY returned arrow and line belongs to `boardPly` (the position currently shown on the board).
+ * - When `focusedMistakePly` is set (and `viewPly === focusedMistakePly - 1`), arrows show:
+ *     blue = engine best move at `viewPly`, red = played mistake move `moves[viewPly]`.
+ * - Otherwise (normal stepping at `viewPly`), arrows show:
+ *     blue = engine best move at `viewPly`, grey = 2nd best move at `viewPly`.
+ */
+export function selectAnalysisPositionData(result, viewPly, focusedMistakePly = null) {
+  if (!result || !Array.isArray(result.positions)) return null;
+  const pos = result.positions.find((p) => p.ply === viewPly) || null;
+  if (!pos) return null;
+
+  const isMistakeFocus =
+    typeof focusedMistakePly === 'number' &&
+    focusedMistakePly > 0 &&
+    viewPly === focusedMistakePly - 1;
+
+  const nextAnn = Array.isArray(result.moveAnnotations)
+    ? result.moveAnnotations.find((a) => a.ply === viewPly + 1) || null
+    : null;
+  const posAfterNext = result.positions.find((p) => p.ply === viewPly + 1) || null;
+
+  const bestMove = pos.bestmove || pos.lines?.[0]?.move || null;
+  const lines = Array.isArray(pos.lines) ? pos.lines.slice(0, 3) : [];
+  const rawArrows = [];
+
+  if (isMistakeFocus && nextAnn) {
+    const bestCoords = parseIccsMove(bestMove);
+    if (bestCoords) {
+      rawArrows.push({
+        ...bestCoords,
+        move: bestMove,
+        kind: 'best',
+        color: '#38BDF8',
+        opacity: 0.92,
+      });
+    }
+    const playedCoords = parseIccsMove(nextAnn.move);
+    if (playedCoords && nextAnn.move !== bestMove) {
+      rawArrows.push({
+        ...playedCoords,
+        move: nextAnn.move,
+        kind: 'played',
+        color: '#EF4444',
+        opacity: 0.88,
+      });
+    }
+  } else {
+    if (bestMove) {
+      const m1 = parseIccsMove(bestMove);
+      if (m1) {
+        rawArrows.push({
+          ...m1,
+          move: bestMove,
+          kind: 'best',
+          color: '#38BDF8',
+          opacity: 0.9,
+        });
+      }
+    }
+    if (lines[1]?.move && lines[1].move !== bestMove) {
+      const m2 = parseIccsMove(lines[1].move);
+      if (m2) {
+        rawArrows.push({
+          ...m2,
+          move: lines[1].move,
+          kind: 'second',
+          color: '#94A3B8',
+          opacity: 0.65,
+        });
+      }
+    }
+  }
+
+  return {
+    boardPly: viewPly,
+    pos,
+    bestMove,
+    lines,
+    isMistakeFocus,
+    focusedAnn: isMistakeFocus ? nextAnn : null,
+    playedNext: nextAnn
+      ? {
+          ply: nextAnn.ply,
+          move: nextAnn.move,
+          cls: nextAnn.cls,
+          label: nextAnn.label,
+          symbol: nextAnn.symbol,
+          color: nextAnn.color,
+          scoreRed: posAfterNext ? posAfterNext.scoreRed : null,
+        }
+      : null,
+    arrows: rawArrows,
+  };
+}

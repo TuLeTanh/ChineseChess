@@ -486,9 +486,20 @@ export class BoardView {
     }
   }
 
-  /** Set analysis arrows: array of { from, to, color, opacity }. */
+  /** Set analysis arrows: array of { from, to, color, opacity, kind?, offset?, dashed? }. */
   setAnalysisArrows(arrows) {
     this.analysisArrows = Array.isArray(arrows) ? arrows : [];
+    if (this.testMode && typeof window !== 'undefined') {
+      window.__analysisArrows = this.analysisArrows.map((a) => ({
+        from: a.from,
+        to: a.to,
+        move: a.move || null,
+        kind: a.kind || null,
+        color: a.color || '#38BDF8',
+        offset: a.offset || 0,
+        dashed: Boolean(a.dashed),
+      }));
+    }
     this._renderOverlays();
   }
 

@@ -12,6 +12,7 @@ import {
   formatEvalScore,
   MOVE_CLASSES,
   analysisKey,
+  gameFingerprint,
   isMistakeClass,
   selectAnalysisPositionData,
 } from '../analysis/math.js';
@@ -83,7 +84,9 @@ export class AnalysisPanel {
     this.onTryMove = opts.onTryMove || null;
     this.onResultChange = opts.onResultChange || null;
 
+    this.gameKey = gameFingerprint(this.startFen, this.moves);
     this.key = analysisKey(this.startFen, this.moves);
+    this.lastRunOpts = { preset: 'fast' };
     this.result = null;
     this.running = null;
     this.viewPly = this.moves.length;
@@ -204,23 +207,48 @@ export class AnalysisPanel {
   }
 
   async loadCached() {
-    if (this.variant === 'jieqi' || !this.ctx.gameStore) return null;
-    const cached = await this.ctx.gameStore.getAnalysis(this.key);
-    if (cached && !this.disposed) {
-      this.applyResult(cached, { persist: false });
-      return cached;
+    if (this.variant === 'jieqi' || this.isUnfinished || !this.ctx.gameStore) return null;
+    const all = this.ctx.gameStore.listAnalyses ? await this.ctx.gameStore.listAnalyses() : [];
+    const hit = all.find(
+      (a) =>
+        a &&
+        (a.gameKey === this.gameKey ||
+          (a.startFen === this.startFen &&
+            Array.isArray(a.moves) &&
+            a.moves.length === this.moves.length &&
+            a.moves.every((m, i) => m === this.moves[i])))
+    );
+    if (hit && !this.disposed) {
+      this.applyResult(hit, { persist: false });
+      return hit;
     }
     return null;
   }
 
   async openSetupModal() {
-    if (this.variant === 'jieqi') return;
+    if (this.variant === 'jieqi' || this.isUnfinished) return;
     const modalRoot = this.ctx.modalRoot;
     if (!modalRoot) return;
     const engInfo = await probeAnalysisEngine();
     if (this.disposed) return;
 
+    const isTouch =
+      Boolean(window.matchMedia?.('(pointer: coarse)').matches) ||
+      (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
     let selectedPreset = 'fast';
+    const maxPly = this.moves.length;
+    const estMsPerPly = (preset) => {
+      if (engInfo.available) return (ANALYSIS_PRESETS[preset] || ANALYSIS_PRESETS.fast).movetimeMs;
+      return preset === 'deep' ? 1800 : preset === 'standard' ? 900 : 350;
+    };
+    const formatEst = (plies, preset) => {
+      const sec = Math.max(1, Math.ceil((plies * estMsPerPly(preset)) / 1000));
+      if (sec < 60) return { sec, text: `Ước tính: ~${sec} giây (${plies} thế cờ)` };
+      const mins = Math.floor(sec / 60);
+      const rem = sec % 60;
+      return { sec, text: `Ước tính: ~${mins} phút ${rem > 0 ? `${rem} giây` : ''} (${plies} thế cờ)` };
+    };
+
     const close = () => {
       window.removeEventListener('keydown', onKey, true);
       modalRoot.hidden = true;
@@ -243,6 +271,11 @@ export class AnalysisPanel {
             Động cơ: <strong>${engInfo.available ? engInfo.name : 'Nội bộ (JS)'}</strong>
             ${engInfo.available ? '(WDL + MultiPV 2)' : '(chạy trực tiếp trên trình duyệt)'}
           </p>
+          ${
+            !engInfo.available && isTouch
+              ? '<p class="set-hint" data-testid="an-battery-hint" style="color:#facc15">Trên thiết bị cảm ứng, phân tích bằng JS có thể tốn pin — mặc định chọn mức Nhanh.</p>'
+              : ''
+          }
           <div class="set-field" style="margin-top:10px">
             <label>Mức phân tích</label>
             <div class="set-seg-3 an-preset-row">
@@ -251,9 +284,15 @@ export class AnalysisPanel {
               <button type="button" class="mini-seg-btn" data-preset="deep">Sâu</button>
             </div>
           </div>
-          <p class="set-hint an-preset-desc" style="margin-top:8px">
-            ${engInfo.available ? '150 ms/nước · rất nhanh' : 'Độ sâu 4 · nhanh'}
-          </p>
+          <p class="set-hint an-preset-desc" style="margin-top:8px"></p>
+          <p class="set-hint an-est-line" data-testid="an-est-line"></p>
+          <div class="an-long-warn" data-testid="an-long-warn" hidden>
+            <p class="set-hint" style="color:#facc15;margin:0 0 6px">Ván dài hoặc ước tính trên 5 phút — bạn có thể chỉ phân tích một đoạn:</p>
+            <div style="display:flex;gap:8px;align-items:center">
+              <label style="font-size:12px">Từ nước <input type="number" class="set-input an-from-ply" min="0" max="${maxPly}" value="0" style="width:72px"></label>
+              <label style="font-size:12px">Đến nước <input type="number" class="set-input an-to-ply" min="0" max="${maxPly}" value="${maxPly}" style="width:72px"></label>
+            </div>
+          </div>
           <div class="modal-actions" style="margin-top:14px">
             <button type="button" class="pill-btn modal-cancel">Đóng</button>
             <button type="button" class="pill-btn pill-btn-gold modal-an-start">Bắt đầu phân tích</button>
@@ -263,15 +302,32 @@ export class AnalysisPanel {
     `;
 
     const descEl = modalRoot.querySelector('.an-preset-desc');
+    const estEl = modalRoot.querySelector('.an-est-line');
+    const longWarnEl = modalRoot.querySelector('.an-long-warn');
+    const fromInput = modalRoot.querySelector('.an-from-ply');
+    const toInput = modalRoot.querySelector('.an-to-ply');
     const descs = engInfo.available
       ? { fast: '150 ms/nước · rất nhanh', standard: '600 ms/nước · cân bằng', deep: '2000 ms/nước · chi tiết nhất' }
       : { fast: 'Độ sâu 4 · nhanh', standard: 'Độ sâu 5 · cân bằng', deep: 'Độ sâu 6 · chậm hơn' };
 
+    const refreshEst = () => {
+      const f = Math.max(0, Math.min(maxPly, Number(fromInput.value) || 0));
+      const t = Math.max(f, Math.min(maxPly, Number(toInput.value) || maxPly));
+      const plies = t - f + 1;
+      const est = formatEst(plies, selectedPreset);
+      descEl.textContent = descs[selectedPreset];
+      estEl.textContent = est.text;
+      longWarnEl.hidden = !(maxPly > 150 || est.sec > 300);
+    };
+    refreshEst();
+
+    fromInput.addEventListener('input', refreshEst);
+    toInput.addEventListener('input', refreshEst);
     modalRoot.querySelectorAll('[data-preset]').forEach((btn) => {
       btn.addEventListener('click', () => {
         selectedPreset = btn.dataset.preset;
         modalRoot.querySelectorAll('[data-preset]').forEach((b) => b.classList.toggle('is-active', b === btn));
-        descEl.textContent = descs[selectedPreset];
+        refreshEst();
       });
     });
     modalRoot.querySelector('.modal-cancel').addEventListener('click', close);
@@ -279,18 +335,24 @@ export class AnalysisPanel {
       if (ev.target === ev.currentTarget) close();
     });
     modalRoot.querySelector('.modal-an-start').addEventListener('click', () => {
+      const f = Math.max(0, Math.min(maxPly, Number(fromInput.value) || 0));
+      const t = Math.max(f, Math.min(maxPly, Number(toInput.value) || maxPly));
       close();
-      this.start({ preset: selectedPreset });
+      this.start({ preset: selectedPreset, fromPly: f, toPly: t });
     });
   }
 
-  start({ preset = 'fast', forceEngine = undefined } = {}) {
-    if (this.variant === 'jieqi') return null;
+  start({ preset = 'fast', forceEngine = undefined, fromPly = 0, toPly = undefined } = {}) {
+    if (this.variant === 'jieqi' || this.isUnfinished) return null;
     this.stop();
+    this.lastRunOpts = { preset, forceEngine, fromPly, toPly };
+    const endPly = toPly ?? this.moves.length;
+    const totalPositions = Math.max(1, endPly - fromPly + 1);
     this.noticeEl.hidden = true;
+    this.noticeEl.innerHTML = '';
     this.progressWrap.hidden = false;
     this.progressFill.style.width = '2%';
-    this.progressLabel.textContent = `Đang phân tích 0 / ${this.moves.length + 1}…`;
+    this.progressLabel.textContent = `Đang phân tích 0 / ${totalPositions}…`;
     this.runBtn.disabled = true;
 
     const handle = runGameAnalysis({
@@ -298,6 +360,8 @@ export class AnalysisPanel {
       moves: this.moves,
       preset,
       forceEngine,
+      fromPly,
+      toPly: endPly,
       onProgress: (snap) => {
         if (this.disposed || this.running?.id !== handle.id) return;
         const pct = Math.round((snap.analyzed / Math.max(1, snap.total)) * 100);
@@ -313,16 +377,29 @@ export class AnalysisPanel {
         this.runBtn.textContent = 'Phân tích lại';
         this.applyResult(finalRes, { persist: true });
       },
-      onError: (err) => {
+      onError: (err, partialSnap) => {
         if (this.disposed || this.running?.id !== handle.id) return;
         this.running = null;
         this.progressWrap.hidden = true;
         this.runBtn.disabled = false;
+        if (partialSnap && partialSnap.analyzed > 0) {
+          this.applyResult(partialSnap, { persist: true });
+        }
         this.noticeEl.hidden = false;
-        this.noticeEl.textContent = `Không thể phân tích: ${err.message || err}`;
+        this.noticeEl.innerHTML = '';
+        const span = document.createElement('span');
+        span.textContent = `Không thể phân tích: ${err?.message || err} `;
+        const retryBtn = document.createElement('button');
+        retryBtn.type = 'button';
+        retryBtn.className = 'mini-seg-btn';
+        retryBtn.dataset.an = 'retry';
+        retryBtn.textContent = 'Thử lại';
+        retryBtn.addEventListener('click', () => this.start(this.lastRunOpts));
+        this.noticeEl.append(span, retryBtn);
       },
     });
     this.running = handle;
+    handle.promise.catch(() => {}); // handled via onError
     return handle;
   }
 

@@ -13,7 +13,7 @@ import {
 } from '../storage/formats.js';
 import { variantToRouteGame } from '../storage/gameRecord.js';
 import { AI_LEVELS } from '../ai/levels.js';
-import { analysisKey } from '../analysis/math.js';
+import { gameFingerprint } from '../analysis/math.js';
 
 export function formatRelativeDateVi(iso) {
   if (!iso) return '';
@@ -226,8 +226,9 @@ export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = 
   const anOptWrap = modalRoot.querySelector('.export-an-opt');
   const anOptChk = modalRoot.querySelector('[data-exp-include-an]');
   if (!isLiveGame && ctx.gameStore && record && record.variant === 'xiangqi' && Array.isArray(record.moves)) {
-    const aKey = analysisKey(record.start?.fen || '', record.moves.map((m) => m.m));
-    ctx.gameStore.getAnalysis(aKey).then((an) => {
+    const gk = gameFingerprint(record.start?.fen || '', record.moves.map((m) => m.m));
+    (ctx.gameStore.listAnalyses ? ctx.gameStore.listAnalyses() : Promise.resolve([])).then((all) => {
+      const an = all.find((a) => (a.gameKey || gameFingerprint(a.startFen || '', a.moves || [])) === gk);
       if (an && anOptWrap && anOptWrap.isConnected) {
         cachedAnalysis = an;
         anOptWrap.hidden = false;

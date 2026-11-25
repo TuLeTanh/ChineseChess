@@ -299,6 +299,16 @@ class PikafishManager:
             self._stop_proc_locked()
 
     def info(self):
+        # Fast non-blocking path when engine is already running (avoids stalling during active analysis)
+        if self._proc is not None and self._proc.poll() is None and self._cfg:
+            return {
+                "available": True,
+                "name": self._name,
+                "version": self._cfg.get("version"),
+                "cpu_build": self._cfg.get("cpu_build"),
+                "default_threads": self._default_threads,
+                "options": self._options,
+            }
         with self._cmd_lock:
             ok = self._ensure_started_locked()
             if not ok:
@@ -537,6 +547,8 @@ class PikafishManager:
         movetime_ms = req.get("movetime_ms", 150)
         depth = req.get("depth")
         multipv = req.get("multipv", 2)
+        from_ply = req.get("fromPly", 0)
+        to_ply = req.get("toPly", len(moves) if isinstance(moves, list) else 0)
 
         if not isinstance(start_fen, str) or "\n" in start_fen or "\r" in start_fen or not FEN_RE.match(start_fen.strip()):
             return 400, {"error": "Invalid startFen"}
@@ -579,7 +591,13 @@ class PikafishManager:
             self._cancel_analysis_id = None
             self._stream_history[analysis_id] = []
 
-        total = len(clean_moves) + 1
+        try:
+            start_ply = max(0, min(len(clean_moves), int(from_ply)))
+            end_ply = max(start_ply, min(len(clean_moves), int(to_ply)))
+        except (TypeError, ValueError):
+            return 400, {"error": "Invalid ply range"}
+
+        total = end_ply - start_ply + 1
 
         def _worker():
             analyzed = 0
@@ -601,7 +619,7 @@ class PikafishManager:
                 self._send("isready")
                 self._drain_until("readyok", timeout=8.0)
 
-                for ply in range(total):
+                for ply in range(start_ply, end_ply + 1):
                     with self._state_lock:
                         if self._cancel_analysis_id == analysis_id:
                             cancelled = True
@@ -637,7 +655,9 @@ class PikafishManager:
 
                         if line.startswith("info "):
                             parsed = parse_info_line(line)
-                            if "depth" in parsed and "score" in parsed and "pv" in parsed:
+                            if "score" in parsed and "mate" in parsed["score"] and parsed["score"]["mate"] == 0:
+                                last_info = {"depth": parsed.get("depth", 0), "score": {"mate": 0}, "pv": []}
+                            elif "depth" in parsed and "score" in parsed and "pv" in parsed:
                                 pv_idx = parsed.get("multipv", 1)
                                 lo = {
                                     "move": parsed["pv"][0],
@@ -652,8 +672,10 @@ class PikafishManager:
                                     last_info = lo
                         elif line.startswith("bestmove "):
                             parts = line.split()
-                            if len(parts) >= 2 and parts[1] != "(none)":
+                            if len(parts) >= 2 and parts[1] not in ("(none)", "0000"):
                                 bestmove = parts[1]
+                            else:
+                                last_info["score"] = {"mate": 0}
                             break
 
                     with self._state_lock:

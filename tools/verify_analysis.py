@@ -277,7 +277,7 @@ def main() -> int:
             }
 
             # (c) Cancel halfway -> stops cleanly & marks "Chưa đầy đủ"
-            page.evaluate("async () => { await window.__gameStore.deleteAnalysis(window.__analysis.key); window.__analysis = null; }")
+            page.evaluate("async () => { for (const a of await window.__gameStore.listAnalyses()) await window.__gameStore.deleteAnalysis(a.key); window.__analysis = null; }")
             page.goto(f"{BASE}/?test#/play/cotuong/review?id=an-test-xq&analyze=1&auto=1&preset=standard", wait_until="networkidle")
             page.wait_for_selector('[data-an="stop"]', state="visible", timeout=5000)
             page.wait_for_function("() => window.__analysis && window.__analysis.analyzed >= 2", timeout=10000)
@@ -287,6 +287,77 @@ def main() -> int:
             results["C_cancel"] = {
                 "status": "PASS" if "chưa đầy đủ" in inc_txt.lower() else "FAIL",
                 "badge": inc_txt,
+            }
+
+            # (i) Item 6 robustness: (a) 409 busy friendly msg + retry button, (c) route leave sends /api/engine/stop,
+            # (e) long game (>150 plies) warning + range inputs, (g) custom FEN checkmate
+            stop_hits: list[str] = []
+            page.on("request", lambda req: stop_hits.append(req.url) if "/api/engine/stop" in req.url else None)
+
+            # 6d: Second tab gets 409 -> friendly message + Retry button
+            page.locator('[data-an="run"]').click()
+            page.wait_for_selector('[data-preset="standard"]', timeout=4000)
+            page.locator('[data-preset="standard"]').click()
+            page.locator('.modal-an-start').click()
+            page.wait_for_selector('[data-an="stop"]', state="visible", timeout=5000)
+            page2 = ctx.new_page()
+            page2.goto(f"{BASE}/?test#/play/cotuong/review?id=an-test-xq&analyze=1&auto=1&preset=fast", wait_until="domcontentloaded")
+            page2.wait_for_selector('[data-an="run"]', timeout=5000)
+            # If page2 loaded cached result instead of auto-starting, click run->start to hit 409
+            if page2.locator('[data-an="retry"]').count() == 0:
+                page2.locator('[data-an="run"]').click()
+                page2.wait_for_selector('.modal-an-start', timeout=4000)
+                page2.locator('.modal-an-start').click()
+            page2.wait_for_selector('[data-an="retry"]', timeout=6000)
+            busy_txt = page2.locator(".an-notice").text_content() or ""
+            page2.close()
+
+            # 6c: Navigate away mid-analysis -> sends /api/engine/stop and leaks stay 0
+            page.goto(f"{BASE}/?test#/library", wait_until="networkidle")
+            page.wait_for_timeout(300)
+            sent_stop_on_leave = len(stop_hits) >= 1
+
+            # 6e: Long game (>150 plies) setup modal shows estimate & warning + range inputs
+            long_moves = (PLANTED_MOVES * 16)[:156]
+            long_rec = {
+                "schemaVersion": 1, "id": "an-long-xq",
+                "createdAt": "2026-11-25T10:00:00.000Z", "updatedAt": "2026-11-25T10:00:00.000Z",
+                "variant": "xiangqi", "mode": "local",
+                "red": {"name": "Đỏ", "kind": "human"}, "black": {"name": "Đen", "kind": "human"},
+                "result": "draw", "reason": "drawAgreed", "start": {"fen": START_FEN},
+                "moves": long_moves, "source": "manual",
+            }
+            page.evaluate(f"async () => {{ await window.__gameStore.saveGame({json.dumps(long_rec)}); }}")
+            page.goto(f"{BASE}/?test#/play/cotuong/review?id=an-long-xq&analyze=1", wait_until="networkidle")
+            page.wait_for_selector('[data-testid="an-long-warn"]:not([hidden])', timeout=5000)
+            est_txt = page.locator('[data-testid="an-est-line"]').text_content() or ""
+            long_warn_vis = page.locator('[data-testid="an-long-warn"]').is_visible()
+            page.keyboard.press("Escape")
+
+            # 6g + 6b: Custom FEN checkmate game
+            mate_rec = {
+                "schemaVersion": 1, "id": "an-mate-xq",
+                "createdAt": "2026-11-25T10:00:00.000Z", "updatedAt": "2026-11-25T10:00:00.000Z",
+                "variant": "xiangqi", "mode": "local",
+                "red": {"name": "Đỏ", "kind": "human"}, "black": {"name": "Đen", "kind": "human"},
+                "result": "red", "reason": "checkmate",
+                "start": {"fen": "4k4/R8/1R7/9/9/9/9/9/9/3K5 w - - 0 1"},
+                "moves": [{"m": "b7b9"}], "source": "manual",
+            }
+            page.evaluate(f"async () => {{ window.__analysis = null; await window.__gameStore.saveGame({json.dumps(mate_rec)}); }}")
+            page.goto(f"{BASE}/?test#/play/cotuong/review?id=an-mate-xq&analyze=1&auto=1&preset=fast", wait_until="domcontentloaded")
+            page.wait_for_function("() => window.__analysis && window.__analysis.startFen.startsWith('4k4/') && window.__analysis.analyzed === 2", timeout=15000)
+            mate_an = page.evaluate("window.__analysis")
+            mate_ok = bool(mate_an and mate_an["positions"][1]["scoreRed"].get("winner") == "red")
+
+            results["I_robustness"] = {
+                "status": "PASS" if (
+                    "bận" in busy_txt.lower() and sent_stop_on_leave and long_warn_vis and "ước tính" in est_txt.lower() and mate_ok
+                ) else "FAIL",
+                "busy_409": "bận" in busy_txt.lower(),
+                "stop_on_leave": sent_stop_on_leave,
+                "long_warn": long_warn_vis,
+                "custom_fen_mate": mate_ok,
             }
 
             # (h) 4x CPU throttle scrub + 20 round trips

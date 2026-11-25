@@ -9,7 +9,7 @@ import { buildPieceSymbolsDefs, pieceSymbolId, pieceBackSymbolId } from '../rend
 import { Board } from '../model/board.js';
 import { JieqiBoard, LETTER_TO_KIND } from '../jieqi/rules.js';
 import { variantToRouteGame } from '../storage/gameRecord.js';
-import { analysisKey } from '../analysis/math.js';
+import { gameFingerprint } from '../analysis/math.js';
 import {
   formatRelativeDateVi,
   formatResultVi,
@@ -184,7 +184,11 @@ export function createLibraryScreen(ctx) {
         });
         if (destroyed) return;
         const allAnalyses = ctx.gameStore.listAnalyses ? await ctx.gameStore.listAnalyses() : [];
-        const analysisByKey = new Map(allAnalyses.map((a) => [a.key, a]));
+        const analysisByGame = new Map();
+        for (const a of allAnalyses) {
+          const gk = a.gameKey || gameFingerprint(a.startFen || '', a.moves || []);
+          if (!analysisByGame.has(gk)) analysisByGame.set(gk, a);
+        }
         currentItems = res.items;
         countSub.textContent = `${res.total} ván đã lưu`;
 
@@ -243,8 +247,8 @@ export function createLibraryScreen(ctx) {
           body.append(topLine, meta);
 
           if (rec.variant === 'xiangqi') {
-            const aKey = analysisKey(rec.start?.fen || '', (rec.moves || []).map((m) => m.m));
-            const an = analysisByKey.get(aKey);
+            const gk = gameFingerprint(rec.start?.fen || '', (rec.moves || []).map((m) => m.m));
+            const an = analysisByGame.get(gk);
             if (an && an.summary && (an.summary.redAccuracy !== null || an.summary.blackAccuracy !== null)) {
               const accEl = document.createElement('div');
               accEl.className = 'lib-acc-badge';

@@ -217,6 +217,7 @@ export function createReplayScreen(ctx) {
         rules,
         theme: ctx.getTheme(),
         practiceMode: false,
+        testMode: ctx.testMode,
         onReturnToLive: () => goToPly(board.history.length),
         onContinueFromHere: () => {
           openContinueFromPositionModal(ctx, {
@@ -230,8 +231,9 @@ export function createReplayScreen(ctx) {
       boardView.setAllowContinue(true);
       // Dock review banner above the board so it never covers the top file labels
       const bannerSlot = container.querySelector('.replay-banner-slot');
-      if (bannerSlot && boardView.reviewBanner) {
-        bannerSlot.appendChild(boardView.reviewBanner);
+      const revBannerEl = stage.querySelector('.review-banner');
+      if (bannerSlot && revBannerEl) {
+        bannerSlot.appendChild(revBannerEl);
       }
 
       sidePanel = new SidePanel({
@@ -387,10 +389,15 @@ export function createReplayScreen(ctx) {
 
       const sheetEl = sidePanelEl.querySelector('[data-testid="bottom-sheet"]');
       if (sheetEl) {
+        let prevSheetState = 'closed';
         bottomSheet = new BottomSheet({
           sheetEl,
           hostContainer: container,
           onStateChange: (st) => {
+            if (prevSheetState !== 'closed' && st === 'closed' && analysisPanel && analysisPanel.running) {
+              analysisPanel.stop();
+            }
+            prevSheetState = st;
             if (layoutManager) layoutManager.setSheetState(st);
             if (moveStrip) moveStrip.setExpanded(st !== 'closed');
           },

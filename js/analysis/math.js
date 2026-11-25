@@ -26,6 +26,10 @@ export function normalizeToRed(score, sideToMove) {
   if (!score) return { cp: 0 };
   const sign = sideToMove === 'black' ? -1 : 1;
   if (typeof score.mate === 'number') {
+    if (score.mate === 0) {
+      // Side to move is checkmated/stalemated (loses in Xiangqi)
+      return { mate: 0, winner: sideToMove === 'red' ? 'black' : 'red' };
+    }
     return { mate: score.mate * sign };
   }
   return { cp: Math.round((score.cp || 0) * sign) };
@@ -69,6 +73,9 @@ export function winPercent(scoreRed, wdlRed = null) {
   }
   if (!scoreRed) return 50;
   if (typeof scoreRed.mate === 'number') {
+    if (scoreRed.mate === 0 && scoreRed.winner) {
+      return scoreRed.winner === 'red' ? 100 : 0;
+    }
     if (scoreRed.mate > 0) return 100;
     if (scoreRed.mate < 0) return 0;
     return 50;
@@ -137,8 +144,15 @@ export function classifyMove(params) {
 
   let cls = 'good';
 
-  // Missed forced mate
-  if (typeof beforeMover.mate === 'number' && beforeMover.mate > 0 && !(typeof afterMover.mate === 'number' && afterMover.mate > 0)) {
+  const deliveredMate = afterScoreRed?.mate === 0 && afterScoreRed?.winner === moverSide;
+
+  // Missed forced mate (never trigger when the move actually delivered checkmate)
+  if (
+    !deliveredMate &&
+    typeof beforeMover.mate === 'number' &&
+    beforeMover.mate > 0 &&
+    !(typeof afterMover.mate === 'number' && afterMover.mate > 0)
+  ) {
     cls = 'missed_mate';
   } else if (isBestMove && secondBestScoreRed) {
     const winSecond = winPercentForMover(secondBestScoreRed, secondBestWdlRed, moverSide);
@@ -252,12 +266,16 @@ export function buildAnalysisReport(positions, moves, startSide = 'red') {
 }
 
 /**
- * Deterministic 64-bit FNV-1a hex key for caching analysis results by (startFen, moves).
+ * Deterministic 64-bit FNV-1a hex key for caching analysis results by
+ * (startFen, moves, preset, engineKind) so an analysis stored for one game/preset/engine
+ * never applies to an edited game.
  * @param {string} startFen
  * @param {string[]} moves
+ * @param {string} [preset='']
+ * @param {string} [engineKind='']
  */
-export function analysisKey(startFen, moves) {
-  const str = `${(startFen || '').trim()}|${(moves || []).join(',')}`;
+export function analysisKey(startFen, moves, preset = '', engineKind = '') {
+  const str = `${(startFen || '').trim()}|${(moves || []).join(',')}|${preset || ''}|${engineKind || ''}`;
   let h1 = 0x811c9dc5;
   let h2 = 0x9e3779b9;
   for (let i = 0; i < str.length; i++) {
@@ -270,13 +288,19 @@ export function analysisKey(startFen, moves) {
   return `an_${(h1 >>> 0).toString(16).padStart(8, '0')}${(h2 >>> 0).toString(16).padStart(8, '0')}`;
 }
 
+/** Game fingerprint (startFen + moves only) for matching any cached preset of the exact same game. */
+export function gameFingerprint(startFen, moves) {
+  return analysisKey(startFen, moves, '', '');
+}
+
 /**
  * Format Red-perspective score for display in eval bar / graph / best-move card.
- * @param {{ cp?: number, mate?: number } | null | undefined} scoreRed
+ * @param {{ cp?: number, mate?: number, winner?: 'red'|'black' } | null | undefined} scoreRed
  */
 export function formatEvalScore(scoreRed) {
   if (!scoreRed) return '0.0';
   if (typeof scoreRed.mate === 'number') {
+    if (scoreRed.mate === 0 && scoreRed.winner) return scoreRed.winner === 'red' ? '+#' : '-#';
     if (scoreRed.mate > 0) return `+M${scoreRed.mate}`;
     if (scoreRed.mate < 0) return `-M${Math.abs(scoreRed.mate)}`;
     return '0.0';

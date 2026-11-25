@@ -296,3 +296,47 @@ test('8. Item 3: best-move card lines match the arrow position and include playe
   assert.equal(data.playedNext.move, 'h0h7');
   assert.equal(formatEvalScore(data.playedNext.scoreRed), '-4.8');
 });
+
+test('9. Item 6b/e/g/h: terminal checkmate mate:0, custom FEN, ply range, and full cache key isolation', async () => {
+  // 6b: terminal checkmate (mate: 0) when Black is mated -> Red wins (100%, +#)
+  const redWins = normalizeToRed({ mate: 0 }, 'black');
+  assert.equal(winPercent(redWins), 100);
+  assert.equal(formatEvalScore(redWins), '+#');
+  const blackWins = normalizeToRed({ mate: 0 }, 'red');
+  assert.equal(winPercent(blackWins), 0);
+  assert.equal(formatEvalScore(blackWins), '-#');
+
+  // 6g: custom non-START_FEN endgame analysis (Double Chariot mate-in-1)
+  const customFen = '4k4/R8/1R7/9/9/9/9/9/9/3K5 w - - 0 1';
+  const hCustom = runGameAnalysis({
+    startFen: customFen,
+    moves: ['b7b9'],
+    preset: 'fast',
+    customEvaluator: async ({ ply }) =>
+      ply === 0 ? { bestmove: 'b7b9', score: { mate: 1 }, depth: 6 } : { bestmove: null, score: { mate: 0 }, depth: 0 },
+  });
+  const resCustom = await hCustom.promise;
+  assert.equal(resCustom.analyzed, 2);
+  assert.equal(resCustom.positions[1].scoreRed.winner, 'red');
+  assert.equal(resCustom.moveAnnotations[0].cls, 'best');
+
+  // 6e: ply range (fromPly..toPly) analyzes only requested slice
+  const moves6 = ['h2e2', 'h9g7', 'h0g2', 'i9h9', 'i0h0', 'b7e7'];
+  const hRange = runGameAnalysis({
+    startFen: START_FEN,
+    moves: moves6,
+    fromPly: 2,
+    toPly: 4,
+    customEvaluator: async ({ ply }) => ({ bestmove: moves6[ply] || 'e0e1', score: { cp: 10 }, depth: 4 }),
+  });
+  const resRange = await hRange.promise;
+  assert.equal(resRange.analyzed, 3);
+  assert.deepEqual(resRange.positions.map((p) => p.ply), [2, 3, 4]);
+
+  // 6h: analysisKey differs when moves, startFen, preset, or engineKind differ
+  const kBase = analysisKey(START_FEN, ['h2e2', 'h9g7'], 'fast', 'pikafish');
+  assert.notEqual(kBase, analysisKey(START_FEN, ['h2e2', 'b9c7'], 'fast', 'pikafish'));
+  assert.notEqual(kBase, analysisKey(customFen, ['h2e2', 'h9g7'], 'fast', 'pikafish'));
+  assert.notEqual(kBase, analysisKey(START_FEN, ['h2e2', 'h9g7'], 'standard', 'pikafish'));
+  assert.notEqual(kBase, analysisKey(START_FEN, ['h2e2', 'h9g7'], 'fast', 'js'));
+});

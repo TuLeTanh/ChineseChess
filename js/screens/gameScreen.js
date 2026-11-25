@@ -21,6 +21,7 @@ import { OnlineGameBridge } from '../online/onlineGameController.js';
 import { leakTracker } from '../app/router.js';
 import { LayoutManager } from '../ui/layoutManager.js';
 import { MoveStrip } from '../ui/moveStrip.js';
+import { BottomSheet } from '../ui/bottomSheet.js';
 import { AI_LEVELS } from '../ai/levels.js';
 
 export function createGameScreen(ctx) {
@@ -515,6 +516,18 @@ export function createGameScreen(ctx) {
         container.classList.toggle('is-flipped', Boolean(flipped));
       };
       container.classList.toggle('is-flipped', Boolean(boardView.flipped));
+
+      const sheetEl = sidePanelEl.querySelector('[data-testid="bottom-sheet"]');
+      if (sheetEl) {
+        bottomSheet = new BottomSheet({
+          sheetEl,
+          hostContainer: container,
+          onStateChange: (st) => {
+            if (layoutManager) layoutManager.setSheetState(st);
+            if (moveStrip) moveStrip.setExpanded(st !== 'closed');
+          },
+        });
+      }
 
       layoutManager = new LayoutManager({
         rootEl: container,

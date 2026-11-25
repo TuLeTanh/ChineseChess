@@ -3750,3 +3750,146 @@ body.mode-effects .board-stage {
 .game-shell[data-layout="side"] .mctrl-label {
   font-size: 11px;
 }
+
+/* =========================================================
+   Upgrade Pass 2 (C3): Bottom Sheet (stack layout only)
+   ========================================================= */
+.game-shell[data-layout="stack"] .sheet-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 6, 4, 0.42);
+  z-index: 45;
+}
+
+.game-shell[data-layout="stack"] .sheet-backdrop[hidden] {
+  display: none !important;
+}
+
+.game-shell[data-layout="stack"] .sheet-host {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(92dvh - 44px);
+  height: calc(var(--app-h, 100dvh) * 0.92 - 44px);
+  background: var(--panel-bg);
+  border-top: 1.5px solid var(--accent-gold);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 40px rgba(0, 0, 0, 0.65);
+  z-index: 50;
+  transform: translate3d(0, 110%, 0);
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  padding-bottom: var(--sab, 0px);
+  will-change: transform;
+}
+
+.game-shell[data-layout="stack"] .sheet-host.is-dragging {
+  transition: none;
+}
+
+.game-shell[data-layout="stack"] .sheet-host[data-state="closed"] {
+  pointer-events: none;
+}
+
+.game-shell[data-layout="stack"] .sheet-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet-handle-pill {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(234, 219, 196, 0.38);
+}
+
+.game-shell[data-layout="stack"] .sheet-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 8px;
+  border-bottom: 1px solid var(--panel-border);
+  flex: 0 0 auto;
+}
+
+.sheet-tab {
+  flex: 1 1 0;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sheet-tab.is-active {
+  background: rgba(217, 164, 65, 0.22);
+  border-color: var(--accent-gold);
+  color: #FFF4DC;
+}
+
+.sheet-tab[hidden] {
+  display: none !important;
+}
+
+.game-shell[data-layout="stack"] .sheet-scroll-body {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 10px 12px 18px;
+}
+
+.game-shell[data-layout="stack"] .sheet-pane {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-shell[data-layout="stack"] .sheet-pane.is-active {
+  display: flex;
+}
+
+.game-shell[data-layout="stack"] .sheet-pane .move-list-section {
+  min-height: 240px;
+}
+
+/* Coarse-pointer timeline & chip hit targets inside sheet/panel */
+@media (pointer: coarse) {
+  .move-timeline-wrap {
+    height: 44px;
+    flex-basis: 44px;
+  }
+  .move-timeline {
+    height: 44px;
+  }
+  .move-chip {
+    min-height: 36px;
+  }
+  .rev-btn {
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-shell[data-layout="stack"] .sheet-host {
+    transition: none !important;
+  }
+}

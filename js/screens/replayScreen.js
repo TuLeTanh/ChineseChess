@@ -19,6 +19,7 @@ import {
 import { leakTracker } from '../app/router.js';
 import { LayoutManager } from '../ui/layoutManager.js';
 import { MoveStrip } from '../ui/moveStrip.js';
+import { BottomSheet } from '../ui/bottomSheet.js';
 
 const FILES = 'abcdefghi';
 
@@ -55,6 +56,7 @@ export function createReplayScreen(ctx) {
   let sidePanel = null;
   let layoutManager = null;
   let moveStrip = null;
+  let bottomSheet = null;
   let autoTimer = null;
   let onKeyDown = null;
   let unsubSettings = null;
@@ -310,19 +312,34 @@ export function createReplayScreen(ctx) {
 
       goToPly(board.history.length, { isScrub: true });
 
+      const sheetEl = sidePanelEl.querySelector('[data-testid="bottom-sheet"]');
+      if (sheetEl) {
+        bottomSheet = new BottomSheet({
+          sheetEl,
+          hostContainer: container,
+          onStateChange: (st) => {
+            if (layoutManager) layoutManager.setSheetState(st);
+            if (moveStrip) moveStrip.setExpanded(st !== 'closed');
+          },
+        });
+      }
+
       moveStrip = new MoveStrip({
         container: moveStripHost,
         board,
         onSelectPly: (ply) => goToPly(ply),
-        onOpenSheet: () => {},
+        onOpenSheet: () => {
+          if (bottomSheet) bottomSheet.open('half');
+        },
       });
       moveStrip.update(viewPly);
 
       layoutManager = new LayoutManager({
         rootEl: container,
         testMode: ctx.testMode,
-        onChange: ({ compactBoard }) => {
+        onChange: ({ mode: layoutMode, compactBoard }) => {
           if (boardView) boardView.setCompactMode(compactBoard);
+          if (bottomSheet) bottomSheet.setEnabled(layoutMode === 'stack');
         },
       });
 
@@ -367,6 +384,10 @@ export function createReplayScreen(ctx) {
       if (moveStrip) {
         moveStrip.dispose();
         moveStrip = null;
+      }
+      if (bottomSheet) {
+        bottomSheet.dispose();
+        bottomSheet = null;
       }
       if (boardView) {
         boardView.animator.clear();

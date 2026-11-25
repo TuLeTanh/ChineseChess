@@ -221,7 +221,75 @@ def main():
         # Engine still works after bad payloads
         c_after, r_after = http_json("POST", "/api/engine/search", {"id": "afterbad", "fen": START_FEN, "depth": 3})
         assert c_after == 200 and r_after.get("bestmove")
-        print("[security] ok (newline FEN=400, bad move=400, oversized=400, bad Host=403, engine healthy after)")
+        # WDL check (UCI_ShowWDL enabled)
+        wdl = r_after.get("wdl")
+        assert isinstance(wdl, list) and len(wdl) == 3 and 990 <= sum(wdl) <= 1010, f"Bad WDL: {wdl}"
+        print(f"[security + wdl] ok (wdl={wdl} sum={sum(wdl)})")
+
+        # /api/engine/analyze: 10-ply game -> 11 positions over SSE, 409 busy, stop < 500ms, bad input -> 400
+        c_an_bad, _ = http_json("POST", "/api/engine/analyze", {"id": "an_bad", "startFen": "bad\nfen", "moves": []})
+        assert c_an_bad == 400, f"Expected 400 for bad analyze startFen, got {c_an_bad}"
+
+        sample_moves = ["h2e2", "h9g7", "h0g2", "i9h9", "i0h0", "b7e7", "b0c2", "b9c7", "a0b0", "a9b9"]
+        c_an, r_an = http_json("POST", "/api/engine/analyze", {
+            "id": "an_10",
+            "startFen": START_FEN,
+            "moves": sample_moves,
+            "movetime_ms": 60,
+            "multipv": 2,
+        })
+        assert c_an == 202 and r_an.get("total") == 11, f"Analyze start failed: {c_an} {r_an}"
+
+        # Concurrent analyze while busy -> 409 Conflict
+        c_busy, _ = http_json("POST", "/api/engine/analyze", {
+            "id": "an_busy",
+            "startFen": START_FEN,
+            "moves": ["h2e2"],
+            "movetime_ms": 50,
+        })
+        assert c_busy == 409, f"Expected 409 when engine busy, got {c_busy}"
+
+        # Read all 11 SSE positions + done
+        pos_events = []
+        done_ev = None
+        with urllib.request.urlopen(f"{BASE}/api/engine/stream?id=an_10", timeout=20) as resp:
+            for raw_ln in resp:
+                ln = raw_ln.decode("utf-8", errors="replace").strip()
+                if ln.startswith("data: "):
+                    ev = json.loads(ln[6:])
+                    if ev.get("type") == "pos":
+                        pos_events.append(ev)
+                    elif ev.get("type") == "done":
+                        done_ev = ev
+                        break
+        assert len(pos_events) == 11, f"Expected 11 pos events, got {len(pos_events)}"
+        assert done_ev and not done_ev.get("cancelled") and done_ev.get("analyzed") == 11
+        assert all(len(e.get("lines", [])) >= 1 for e in pos_events)
+        print(f"[analyze 10-ply] ok (positions={len(pos_events)}, busy=409, bad_input=400)")
+
+        # Analyze stop < 500ms
+        c_st, _ = http_json("POST", "/api/engine/analyze", {
+            "id": "an_stop",
+            "startFen": START_FEN,
+            "moves": sample_moves,
+            "movetime_ms": 400,
+            "multipv": 2,
+        })
+        assert c_st == 202
+        time.sleep(0.08)
+        t_stop0 = time.monotonic()
+        http_json("POST", "/api/engine/stop", {"id": "an_stop"})
+        with urllib.request.urlopen(f"{BASE}/api/engine/stream?id=an_stop", timeout=5) as resp:
+            for raw_ln in resp:
+                ln = raw_ln.decode("utf-8", errors="replace").strip()
+                if ln.startswith("data: "):
+                    ev = json.loads(ln[6:])
+                    if ev.get("type") == "done":
+                        assert ev.get("cancelled") is True, f"Expected cancelled=True, got {ev}"
+                        break
+        stop_ms = int((time.monotonic() - t_stop0) * 1000)
+        assert stop_ms < 500, f"Analyze stop took {stop_ms}ms (>= 500ms)"
+        print(f"[analyze stop] ok ({stop_ms} ms)")
 
         # 3, 4, 5, 6: Browser-side verification (50/50 legality, 3 mate-in-1, 4-game match, live UI + screenshots)
         errors = []

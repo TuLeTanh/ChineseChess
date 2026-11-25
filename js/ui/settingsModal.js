@@ -5,7 +5,7 @@
  * online connection check, data reset, and About/Licenses.
  */
 import { isValidNickname, isValidServerUrl } from '../app/settings.js';
-import { openImportModal, triggerDownload } from './saveModals.js';
+import { openImportModal, triggerDownload, copyTextWithFallback } from './saveModals.js';
 
 const APP_VERSION = '1.0.0';
 
@@ -271,14 +271,13 @@ export function openSettingsModal(ctx, initialTab = 'account', returnFocusEl = n
         }
       });
       modalRoot.querySelector('[data-act="copy-guest"]').addEventListener('click', async (ev) => {
-        try {
-          await navigator.clipboard.writeText(s.guestId);
-          ev.currentTarget.textContent = 'Đã chép!';
+        const btn = ev.currentTarget;
+        const ok = await copyTextWithFallback(ctx, s.guestId, 'Mã khách');
+        if (ok && btn) {
+          btn.textContent = 'Đã chép!';
           window.setTimeout(() => {
-            if (ev.currentTarget) ev.currentTarget.textContent = 'Sao chép';
+            if (btn) btn.textContent = 'Sao chép';
           }, 1200);
-        } catch {
-          // ignore clipboard errors
         }
       });
     } else if (activeTab === 'appearance') {

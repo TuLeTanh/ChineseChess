@@ -45,6 +45,20 @@ async function init() {
   const params = new URLSearchParams(window.location.search);
   const isTestMode = params.has('test');
 
+  // Keep --app-h and --vvh synced globally so modals on every screen react to soft keyboard shrinks
+  const syncViewportVars = () => {
+    const h = Math.max(1, Math.round(window.innerHeight));
+    const vvh = window.visualViewport ? Math.round(window.visualViewport.height) : h;
+    document.documentElement.style.setProperty('--app-h', `${h}px`);
+    document.documentElement.style.setProperty('--vvh', `${vvh}px`);
+  };
+  syncViewportVars();
+  window.addEventListener('resize', syncViewportVars);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncViewportVars);
+    window.visualViewport.addEventListener('scroll', syncViewportVars);
+  }
+
   const initialSettings = settingsStore.get();
   let theme = getTheme(params.get('theme') || initialSettings.theme);
   applyUiThemeVars(theme);

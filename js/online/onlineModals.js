@@ -5,6 +5,7 @@
 import { OnlineConnection } from './connection.js';
 import { TIME_CONTROL_LIST, normalizeRoomCode, isValidRoomCode } from './protocol.js';
 import { leakTracker } from '../app/router.js';
+import { copyTextWithFallback } from '../ui/saveModals.js';
 
 const GAME_LABELS = {
   cotuong: 'Cờ Tướng',
@@ -27,8 +28,18 @@ export function openQuickMatchModal(ctx, game, onlineInfo) {
   let elapsedSec = 0;
   let closed = false;
 
+  const onKeyDown = (ev) => {
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      ev.stopPropagation();
+      cleanup(false);
+    }
+  };
+  window.addEventListener('keydown', onKeyDown, true);
+
   const cleanup = (keepConn = false) => {
     closed = true;
+    window.removeEventListener('keydown', onKeyDown, true);
     if (elapsedTimer) {
       window.clearInterval(elapsedTimer);
       elapsedTimer = null;
@@ -184,8 +195,18 @@ export function openRoomModal(ctx, game, prefillCode = '', onlineInfo = { ok: tr
   let errText = '';
   let closed = false;
 
+  const onKeyDown = (ev) => {
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      ev.stopPropagation();
+      cleanup(false);
+    }
+  };
+  window.addEventListener('keydown', onKeyDown, true);
+
   const cleanup = (keepConn = false) => {
     closed = true;
+    window.removeEventListener('keydown', onKeyDown, true);
     if (conn && !keepConn) {
       conn.send('room.leave');
       conn.close();
@@ -289,29 +310,13 @@ export function openRoomModal(ctx, game, prefillCode = '', onlineInfo = { ok: tr
 
       ctx.modalRoot.querySelector('[data-copy="code"]').addEventListener('click', async (ev) => {
         const btn = ev.currentTarget;
-        try {
-          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            await navigator.clipboard.writeText(roomState.code);
-            if (btn) btn.textContent = 'Đã chép mã ✓';
-            return;
-          }
-        } catch {
-          // fall through
-        }
-        window.prompt('Sao chép mã phòng:', roomState.code);
+        const ok = await copyTextWithFallback(ctx, roomState.code, 'Mã phòng');
+        if (ok && btn) btn.textContent = 'Đã chép mã ✓';
       });
       ctx.modalRoot.querySelector('[data-copy="link"]').addEventListener('click', async (ev) => {
         const btn = ev.currentTarget;
-        try {
-          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            await navigator.clipboard.writeText(inviteUrl);
-            if (btn) btn.textContent = 'Đã chép link ✓';
-            return;
-          }
-        } catch {
-          // fall through
-        }
-        window.prompt('Sao chép liên kết phòng:', inviteUrl);
+        const ok = await copyTextWithFallback(ctx, inviteUrl, 'Liên kết phòng');
+        if (ok && btn) btn.textContent = 'Đã chép link ✓';
       });
       ctx.modalRoot.querySelector('.modal-leave-room').addEventListener('click', () => cleanup(false));
       const startBtn = ctx.modalRoot.querySelector('.modal-start-room');
@@ -353,7 +358,7 @@ export function openRoomModal(ctx, game, prefillCode = '', onlineInfo = { ok: tr
                   ${codeChars
                     .map(
                       (ch, idx) =>
-                        `<input type="text" class="code-box" maxlength="1" data-cidx="${idx}" value="${ch.trim()}" aria-label="Ký tự ${idx + 1}">`
+                        `<input type="text" class="code-box" maxlength="1" size="1" data-cidx="${idx}" value="${ch.trim()}" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="text" aria-label="Ký tự ${idx + 1}">`
                     )
                     .join('')}
                 </div>

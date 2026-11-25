@@ -20,6 +20,8 @@ import { leakTracker } from '../app/router.js';
 import { LayoutManager } from '../ui/layoutManager.js';
 import { MoveStrip } from '../ui/moveStrip.js';
 import { BottomSheet } from '../ui/bottomSheet.js';
+import { EvalBar } from '../ui/evalBar.js';
+import { AnalysisPanel } from '../ui/analysisView.js';
 
 const FILES = 'abcdefghi';
 
@@ -57,6 +59,8 @@ export function createReplayScreen(ctx) {
   let layoutManager = null;
   let moveStrip = null;
   let bottomSheet = null;
+  let evalBar = null;
+  let analysisPanel = null;
   let autoTimer = null;
   let onKeyDown = null;
   let unsubSettings = null;
@@ -114,13 +118,14 @@ export function createReplayScreen(ctx) {
       const isJieqi = record.variant === 'jieqi';
       let viewPly = board.history.length;
 
-      container.className = 'app-shell game-shell';
+      container.className = 'app-shell game-shell is-replay-shell';
       container.innerHTML = `
         <main id="board-stage" class="board-stage">
           <div class="game-top-nav">
             <button type="button" class="game-nav-btn" data-nav="back">${isShare ? '← Sảnh' : '← Thư viện'}</button>
-            <span class="replay-mode-pill">${isShare ? 'Đang xem ván chia sẻ' : 'Đang xem ván đã lưu'}</span>
+            <span class="replay-mode-pill" data-nowrap="1">${isShare ? 'Đang xem ván chia sẻ' : 'Đang xem ván đã lưu'}</span>
           </div>
+          <div class="replay-banner-slot"></div>
           <div class="game-board-host"></div>
           <div class="move-strip-host"></div>
           <nav class="mobile-controls-bar" data-testid="mobile-controls" aria-label="Điều khiển xem lại">
@@ -155,7 +160,7 @@ export function createReplayScreen(ctx) {
       const currentViewFen = () => board.snapshotAt(viewPly).fen;
       const currentViewPool = () => (isJieqi ? board.getPool(viewPly) : null);
 
-      const goToPly = (target, { isScrub = false, fromAuto = false } = {}) => {
+      const goToPly = (target, { isScrub = false, fromAuto = false, keepMistakeFocus = false } = {}) => {
         if (disposed) return;
         if (!fromAuto) stopAuto();
         const total = board.history.length;
@@ -180,8 +185,9 @@ export function createReplayScreen(ctx) {
         });
         sidePanel.setReviewState({ viewPly, hasNewMoves: false, autoPlaying: Boolean(autoTimer), skipScroll: isScrub });
         if (moveStrip) moveStrip.update(viewPly);
+        if (analysisPanel) analysisPanel.syncPly(viewPly, { keepMistakeFocus });
         if (ctx.testMode && typeof window !== 'undefined') {
-          window.__view = { ply: viewPly, total, fen: snap.fen };
+          window.__view = { ply: viewPly, total, fen: snap.fen, sideToMove: viewBoard.sideToMove };
         }
       };
 
@@ -211,6 +217,7 @@ export function createReplayScreen(ctx) {
         rules,
         theme: ctx.getTheme(),
         practiceMode: false,
+        testMode: ctx.testMode,
         onReturnToLive: () => goToPly(board.history.length),
         onContinueFromHere: () => {
           openContinueFromPositionModal(ctx, {
@@ -222,6 +229,12 @@ export function createReplayScreen(ctx) {
       });
       boardView.setLocked(true);
       boardView.setAllowContinue(true);
+      // Dock review banner above the board so it never covers the top file labels
+      const bannerSlot = container.querySelector('.replay-banner-slot');
+      const revBannerEl = stage.querySelector('.review-banner');
+      if (bannerSlot && revBannerEl) {
+        bannerSlot.appendChild(revBannerEl);
+      }
 
       sidePanel = new SidePanel({
         container: sidePanelEl,
@@ -248,7 +261,13 @@ export function createReplayScreen(ctx) {
         onAiLevelChange: () => {},
         onHint: () => {},
         onResign: () => {},
-        onSelectPly: (ply, opts) => goToPly(ply, opts),
+        onSelectPly: (ply, opts) => {
+          if (analysisPanel && !opts?.isScrub) {
+            analysisPanel.selectMove(ply, opts);
+          } else {
+            goToPly(ply, opts);
+          }
+        },
         onStepPly: (delta) => goToPly(viewPly + delta),
         onToggleAutoPlay: () => toggleAuto(),
         onToggleMute: () => {
@@ -262,11 +281,19 @@ export function createReplayScreen(ctx) {
         onVolumeChange: (v) => ctx.setVolume(v),
       });
 
-      // Customize sidePanel for read-only archive review
+      // Customize sidePanel for read-only archive review: hide "Ván mới" and "Đi lại"
       if (sidePanel.practiceWrap) sidePanel.practiceWrap.style.display = 'none';
       const newBtn = sidePanelEl.querySelector('[data-action="new"]');
-      if (newBtn) newBtn.disabled = true;
-      if (sidePanel.undoBtn) sidePanel.undoBtn.disabled = true;
+      if (newBtn) {
+        newBtn.disabled = true;
+        newBtn.hidden = true;
+        newBtn.style.display = 'none';
+      }
+      if (sidePanel.undoBtn) {
+        sidePanel.undoBtn.disabled = true;
+        sidePanel.undoBtn.hidden = true;
+        sidePanel.undoBtn.style.display = 'none';
+      }
       sidePanel.redCard.querySelector('.player-name').textContent = record.red?.name || 'Đỏ';
       sidePanel.blackCard.querySelector('.player-name').textContent = record.black?.name || 'Đen';
 
@@ -310,14 +337,67 @@ export function createReplayScreen(ctx) {
       const ctrlGrid = sidePanelEl.querySelector('.controls-grid');
       if (ctrlGrid) ctrlGrid.parentNode.insertBefore(archiveBar, ctrlGrid);
 
+      // Mount EvalBar + AnalysisPanel (Cờ Tướng full support; Cờ Úp displays unsupported notice)
+      evalBar = new EvalBar({ container: stage });
+      boardView.onFlipChange = (flipped) => {
+        container.classList.toggle('is-flipped', Boolean(flipped));
+        if (evalBar) evalBar.setFlipped(flipped);
+      };
+      if (sidePanel.analysisTabBtn) sidePanel.analysisTabBtn.hidden = false;
+      const anPane = sidePanelEl.querySelector('.sheet-pane[data-spane="analysis"]');
+      if (anPane) anPane.hidden = false;
+      sidePanelEl.classList.add('has-analysis');
+
+      const analysisHost = sidePanel.analysisPaneHost || sidePanelEl;
+      analysisPanel = new AnalysisPanel({
+        ctx,
+        hostEl: analysisHost,
+        evalBar,
+        boardView,
+        sidePanel,
+        startFen: record.start.fen,
+        moves: (record.moves || []).map((m) => m.m),
+        variant: record.variant,
+        isUnfinished: record.result === 'unfinished',
+        onSelectPly: (ply, opts) => goToPly(ply, opts),
+        onTryMove: (ply, iccs) => {
+          if (isJieqi || !iccs || iccs.length !== 4) return;
+          const b = Board.fromFen(board.snapshotAt(ply).fen);
+          const from = { x: FILES.indexOf(iccs[0]), y: 9 - Number(iccs[1]) };
+          const to = { x: FILES.indexOf(iccs[2]), y: 9 - Number(iccs[3]) };
+          b.applyMove(from, to);
+          openContinueFromPositionModal(ctx, {
+            variant: 'xiangqi',
+            fen: b.toFen(),
+            pool: null,
+          });
+        },
+      });
+
       goToPly(board.history.length, { isScrub: true });
+
+      analysisPanel.loadCached().then((cached) => {
+        if (disposed || isJieqi || record.result === 'unfinished') return;
+        if (!cached && route.query?.analyze === '1') {
+          if (route.query?.auto === '1') {
+            analysisPanel.start({ preset: route.query?.preset || 'fast', forceEngine: route.query?.engine });
+          } else {
+            analysisPanel.openSetupModal();
+          }
+        }
+      });
 
       const sheetEl = sidePanelEl.querySelector('[data-testid="bottom-sheet"]');
       if (sheetEl) {
+        let prevSheetState = 'closed';
         bottomSheet = new BottomSheet({
           sheetEl,
           hostContainer: container,
           onStateChange: (st) => {
+            if (prevSheetState !== 'closed' && st === 'closed' && analysisPanel && analysisPanel.running) {
+              analysisPanel.stop();
+            }
+            prevSheetState = st;
             if (layoutManager) layoutManager.setSheetState(st);
             if (moveStrip) moveStrip.setExpanded(st !== 'closed');
           },
@@ -388,6 +468,14 @@ export function createReplayScreen(ctx) {
       if (bottomSheet) {
         bottomSheet.dispose();
         bottomSheet = null;
+      }
+      if (analysisPanel) {
+        analysisPanel.dispose();
+        analysisPanel = null;
+      }
+      if (evalBar) {
+        evalBar.dispose();
+        evalBar = null;
       }
       if (boardView) {
         boardView.animator.clear();

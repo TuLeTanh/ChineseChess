@@ -201,6 +201,16 @@ node server/index.js --lan
 |---|---|---|
 | ![Thư viện ván](docs/screenshots/library.png) | ![Nhập ván cờ](docs/screenshots/import_dialog.png) | ![Xem lại ván đã lưu](docs/screenshots/replay_banner.png) |
 
+**Phân tích ván cờ (Cờ Tướng — Pikafish WDL / Nội bộ JS)**
+- Chi tiết kiến trúc và công thức chấm điểm xem tại [`docs/ANALYSIS.md`](docs/ANALYSIS.md).
+- Chỉ mở cho ván đã kết thúc / xem lại trong Thư viện (bảo toàn công bằng trong lúc đang chơi; Cờ Úp hiển thị thông báo chưa hỗ trợ).
+- Thanh đánh giá động (18 px dọc bên trái bàn cờ trên máy tính, 10 px ngang phía trên bàn cờ trên điện thoại), biểu đồ diện tích SVG kéo trượt theo từng nước, mũi tên phân tích (xanh = tốt nhất, xám = phương án 2, đỏ = nước sai lầm), thẻ **Thử nước này**, vòng tròn độ chính xác Đỏ/Đen, top 3 sai lầm lớn nhất, lọc **Chỉ hiện sai lầm**, và tab thứ 4 **Phân tích** trong bảng trượt điện thoại.
+- Tự lưu vào IndexedDB (`xq_games_v1` v2, tối đa 100 bản), hiện huy hiệu độ chính xác ngoài Thư viện, và có tùy chọn **Kèm phân tích** khi tải file `.xqgame.json`.
+
+| | | |
+|---|---|---|
+| ![Phân tích máy tính](docs/screenshots/analysis_desktop.png) | ![Biểu đồ & Tóm tắt phân tích](docs/screenshots/analysis_graph.png) | ![Phân tích trên điện thoại](docs/screenshots/analysis_mobile.png) |
+
 **Giao diện** (đổi giữa Gỗ Lim và Ngọc Bích).
 - **Luyện tập**: bật **Đi tự do (luyện tập)** (trong chế độ Hai người) để đặt quân tự do không kiểm tra luật.
 - **Âm thanh**: thanh loa ở cuối bảng phải để tắt/bật âm thanh, bật/tắt giọng hô và chỉnh âm lượng.

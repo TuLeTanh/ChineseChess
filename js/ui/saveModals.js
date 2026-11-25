@@ -13,6 +13,7 @@ import {
 } from '../storage/formats.js';
 import { variantToRouteGame } from '../storage/gameRecord.js';
 import { AI_LEVELS } from '../ai/levels.js';
+import { gameFingerprint } from '../analysis/math.js';
 
 export function formatRelativeDateVi(iso) {
   if (!iso) return '';
@@ -126,10 +127,11 @@ export async function saveRecordWithPrunePrompt(ctx, record) {
   return res;
 }
 
-export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = false, onSaved = null }) {
+export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = false, isLiveGame = false, onSaved = null }) {
   const modalRoot = ctx.modalRoot;
   if (!modalRoot) return;
   const prevFocus = document.activeElement;
+  const disAttr = isLiveGame ? 'disabled title="Có sau khi kết thúc ván"' : '';
 
   const close = () => {
     window.removeEventListener('keydown', onKey, true);
@@ -153,16 +155,21 @@ export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = 
     <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="export-title">
       <div class="modal-card setup-modal">
         <h3 id="export-title">Lưu &amp; Xuất ván cờ</h3>
+        ${isLiveGame ? '<p class="set-hint" data-testid="live-export-lock">Có sau khi kết thúc ván — tạm khóa trong lúc đang thi đấu để đảm bảo công bằng.</p>' : ''}
         <div class="export-menu-list">
           ${
             allowSaveToLibrary
-              ? `<button type="button" class="pill-btn pill-btn-gold" data-exp="save">💾 Lưu vào thư viện</button>`
+              ? `<button type="button" class="pill-btn pill-btn-gold" data-exp="save" ${disAttr}>💾 Lưu vào thư viện</button>`
               : ''
           }
-          <button type="button" class="pill-btn" data-exp="fen">📋 Sao chép FEN thế cờ hiện tại</button>
-          <button type="button" class="pill-btn" data-exp="link">🔗 Sao chép liên kết ván</button>
-          <button type="button" class="pill-btn" data-exp="json">⬇ Tải file .xqgame.json</button>
-          <button type="button" class="pill-btn" data-exp="pgn">⬇ Tải văn bản PGN (.pgn)</button>
+          <button type="button" class="pill-btn" data-exp="fen" ${disAttr}>📋 Sao chép FEN thế cờ hiện tại</button>
+          <button type="button" class="pill-btn" data-exp="link" ${disAttr}>🔗 Sao chép liên kết ván</button>
+          <button type="button" class="pill-btn" data-exp="json" ${disAttr}>⬇ Tải file .xqgame.json</button>
+          <label class="export-an-opt" hidden>
+            <input type="checkbox" data-exp-include-an ${disAttr}>
+            <span>Kèm phân tích đã lưu (chỉ áp dụng cho .xqgame.json)</span>
+          </label>
+          <button type="button" class="pill-btn" data-exp="pgn" ${disAttr}>⬇ Tải văn bản PGN (.pgn)</button>
         </div>
         <div class="set-msg export-status" aria-live="polite" style="margin-top:10px"></div>
         <div class="modal-actions" style="margin-top:14px">
@@ -186,6 +193,7 @@ export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = 
   const saveBtn = modalRoot.querySelector('[data-exp="save"]');
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
+      if (isLiveGame) return;
       const r = await saveRecordWithPrunePrompt(ctx, { ...record, source: 'manual' });
       if (r.ok) {
         setStatus('Đã lưu vào Thư viện ván ✓');
@@ -197,11 +205,13 @@ export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = 
   }
 
   modalRoot.querySelector('[data-exp="fen"]').addEventListener('click', async () => {
+    if (isLiveGame) return;
     const ok = await copyTextWithFallback(ctx, currentFen || record.start.fen, 'FEN');
     if (ok) setStatus('Đã sao chép FEN vào bộ nhớ tạm ✓');
   });
 
   modalRoot.querySelector('[data-exp="link"]').addEventListener('click', async () => {
+    if (isLiveGame) return;
     const enc = await encodeSharePayload(record);
     if (!enc.ok) {
       setStatus(enc.error.message, false);
@@ -212,12 +222,29 @@ export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = 
     if (ok) setStatus(`Đã sao chép liên kết (${enc.payload.length} ký tự) ✓`);
   });
 
+  let cachedAnalysis = null;
+  const anOptWrap = modalRoot.querySelector('.export-an-opt');
+  const anOptChk = modalRoot.querySelector('[data-exp-include-an]');
+  if (!isLiveGame && ctx.gameStore && record && record.variant === 'xiangqi' && Array.isArray(record.moves)) {
+    const gk = gameFingerprint(record.start?.fen || '', record.moves.map((m) => m.m));
+    (ctx.gameStore.listAnalyses ? ctx.gameStore.listAnalyses() : Promise.resolve([])).then((all) => {
+      const an = all.find((a) => (a.gameKey || gameFingerprint(a.startFen || '', a.moves || [])) === gk);
+      if (an && anOptWrap && anOptWrap.isConnected) {
+        cachedAnalysis = an;
+        anOptWrap.hidden = false;
+      }
+    });
+  }
+
   modalRoot.querySelector('[data-exp="json"]').addEventListener('click', () => {
-    triggerDownload(makeExportFilename(record, 'xqgame.json'), toJson(record), 'application/json;charset=utf-8');
+    if (isLiveGame) return;
+    const payload = cachedAnalysis && anOptChk?.checked ? { ...record, analysis: cachedAnalysis } : record;
+    triggerDownload(makeExportFilename(record, 'xqgame.json'), toJson(payload), 'application/json;charset=utf-8');
     setStatus('Đã tải xuống file .xqgame.json ✓');
   });
 
   modalRoot.querySelector('[data-exp="pgn"]').addEventListener('click', () => {
+    if (isLiveGame) return;
     triggerDownload(makeExportFilename(record, 'pgn'), toPgn(record), 'text/plain;charset=utf-8');
     setStatus('Đã tải xuống file .pgn ✓');
   });

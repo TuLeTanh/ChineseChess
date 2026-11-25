@@ -280,6 +280,7 @@ export class SidePanel {
           <p class="gameover-stats">${statsText}</p>
           <div class="modal-actions">
             <button type="button" class="pill-btn modal-review">Xem lại bàn cờ</button>
+            ${this.callbacks.onAnalyzeGame && !this.isJieqi && totalPlies > 0 ? '<button type="button" class="pill-btn modal-analyze" aria-label="Phân tích ván">Phân tích</button>' : ''}
             ${this.callbacks.onExportGame ? '<button type="button" class="pill-btn modal-export">Xuất</button>' : ''}
             <button type="button" class="pill-btn pill-btn-gold modal-new-game">Ván mới</button>
           </div>
@@ -291,6 +292,13 @@ export class SidePanel {
       this.closeModal();
       if (this.callbacks.onReviewGameOver) this.callbacks.onReviewGameOver();
     });
+    const anBtn = this.modalRoot.querySelector('.modal-analyze');
+    if (anBtn && this.callbacks.onAnalyzeGame) {
+      anBtn.addEventListener('click', () => {
+        this.closeModal();
+        this.callbacks.onAnalyzeGame();
+      });
+    }
     const expBtn = this.modalRoot.querySelector('.modal-export');
     if (expBtn && this.callbacks.onExportGame) {
       expBtn.addEventListener('click', () => {
@@ -487,6 +495,7 @@ export class SidePanel {
           <button type="button" role="tab" class="sheet-tab is-active" data-stab="moves" aria-selected="true">Nước đi</button>
           <button type="button" role="tab" class="sheet-tab" data-stab="pool" aria-selected="false" ${this.isJieqi ? '' : 'hidden'}>Quân úp</button>
           <button type="button" role="tab" class="sheet-tab" data-stab="options" aria-selected="false">Tùy chọn</button>
+          <button type="button" role="tab" class="sheet-tab" data-stab="analysis" aria-selected="false" hidden>Phân tích</button>
         </div>
         <div class="sheet-scroll-body">
           <div class="sheet-pane is-active" data-spane="moves">
@@ -520,6 +529,9 @@ export class SidePanel {
           </div>
           <div class="sheet-pane" data-spane="pool">
       <section class="jieqi-pool-panel" aria-label="Quân úp còn lại" hidden></section>
+          </div>
+          <div class="sheet-pane" data-spane="analysis" hidden>
+      <div class="analysis-pane-host"></div>
           </div>
           <div class="sheet-pane" data-spane="options">
       <div class="mode-bar">
@@ -596,6 +608,8 @@ export class SidePanel {
 
     this.variantHeaderEl = this.container.querySelector('.variant-header-pill');
     this.poolPanelEl = this.container.querySelector('.jieqi-pool-panel');
+    this.analysisTabBtn = this.container.querySelector('[data-stab="analysis"]');
+    this.analysisPaneHost = this.container.querySelector('.analysis-pane-host');
     this.modeBarEl = this.container.querySelector('.mode-bar');
     this.modeSegmentedEl = this.container.querySelector('.mode-bar .segmented');
     this.modePvpBtn = this.container.querySelector('[data-mode="pvp"]');

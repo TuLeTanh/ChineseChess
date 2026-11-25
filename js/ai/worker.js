@@ -20,6 +20,19 @@ self.onmessage = (ev) => {
     return;
   }
 
+  if (msg.type === 'analyze_pos') {
+    const { id, fen, depth = 4, timeBudgetMs = 600 } = msg;
+    const res = searchBestMove(fen, {
+      maxDepth: depth,
+      timeMs: timeBudgetMs,
+      shouldStop: () => cancelledId === id,
+    });
+    if (cancelledId !== id) {
+      self.postMessage({ type: 'analyze_result', id, ...res });
+    }
+    return;
+  }
+
   if (msg.type === 'search') {
     const { id, variant, fen, history, level, seed } = msg;
     const commonOpts = {

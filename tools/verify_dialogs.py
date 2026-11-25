@@ -48,6 +48,7 @@ DIALOG_SIZES = (
 )
 
 FULL_DIALOG_SIZES = ("320x568", "360x740", "inapp_390x700", "390x844", "844x390", "820x1180")
+WEBKIT_SIZES = ("390x844", "844x390", "820x1180")
 
 
 def _audit_open_dialog(page, label: str, vw: int, vh: int, check_keyboard_sel: str | None = None) -> dict[str, Any]:
@@ -127,7 +128,7 @@ def _audit_open_dialog(page, label: str, vw: int, vh: int, check_keyboard_sel: s
     return res
 
 
-def run_crawler(out_dir: Path, baseline: bool = False) -> dict[str, Any]:
+def run_crawler(out_dir: Path, baseline: bool = False, use_webkit: bool = False) -> dict[str, Any]:
     port = 8793
     env = {**os.environ, "PORT": str(port)}
     proc = subprocess.Popen(
@@ -144,13 +145,23 @@ def run_crawler(out_dir: Path, baseline: bool = False) -> dict[str, Any]:
     checked = 0
     all_errors: list[str] = []
     offline_btns_bug = []
+    visited_dialogs: set[str] = set()
+    sizes_to_run = WEBKIT_SIZES if use_webkit else DIALOG_SIZES
+    engine_name = "webkit" if use_webkit else "chromium"
+
+    def _rec(dialog_name: str, size_name: str, theme: str, r: dict[str, Any]) -> None:
+        nonlocal checked
+        checked += 1
+        visited_dialogs.add(dialog_name)
+        if not r["ok"]:
+            failures.append(f"{size_name}/{theme}/{dialog_name}: {r}")
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
-            for size_name in DIALOG_SIZES:
+            browser = p.webkit.launch() if use_webkit else p.chromium.launch()
+            for size_name in sizes_to_run:
                 spec = DEVICE_BY_NAME[size_name]
-                is_full = size_name in FULL_DIALOG_SIZES
+                is_full = use_webkit or (size_name in FULL_DIALOG_SIZES)
                 themes = ("go-lim", "ngoc-bich") if is_full else ("go-lim",)
                 ctx = create_device_context(browser, spec)
                 page = ctx.new_page()
@@ -174,83 +185,65 @@ def run_crawler(out_dir: Path, baseline: bool = False) -> dict[str, Any]:
                     page.locator('[data-tile="online"]').click()
                     page.wait_for_selector(".modal-card", timeout=3000)
                     page.wait_for_timeout(120)
-                    r = _audit_open_dialog(page, "quick_match", spec.width, spec.height)
-                    checked += 1
-                    if not r["ok"]:
-                        failures.append(f"{size_name}/{theme}/quick_match: {r}")
+                    _rec("quick_match", size_name, theme, _audit_open_dialog(page, "quick_match", spec.width, spec.height))
                     if is_full and theme == "go-lim":
-                        save_screenshot(page, f"{size_name}_quick_match.png", out_dir)
+                        save_screenshot(page, f"{engine_name}_{size_name}_quick_match.png", out_dir)
                     page.keyboard.press("Escape")
                     page.wait_for_timeout(80)
                     if not page.evaluate("document.getElementById('modal-root').hidden"):
                         page.locator(".modal-cancel").first.click()
 
-                    # 3. Room create & Room join (code boxes)
+                    # 3. Room create & Room join (empty + wrong code) & Room waiting
                     page.locator('[data-tile="room"]').click()
                     page.wait_for_selector(".modal-card", timeout=3000)
                     page.wait_for_timeout(120)
-                    r = _audit_open_dialog(page, "room_create", spec.width, spec.height)
-                    checked += 1
-                    if not r["ok"]:
-                        failures.append(f"{size_name}/{theme}/room_create: {r}")
-                    if is_full and theme == "go-lim":
-                        save_screenshot(page, f"{size_name}_room_create.png", out_dir)
+                    _rec("room_create", size_name, theme, _audit_open_dialog(page, "room_create", spec.width, spec.height))
 
-                    # Switch to Nhập mã tab
                     page.locator('[data-rtab="join"]').click()
                     page.wait_for_selector(".code-box", timeout=3000)
                     page.wait_for_timeout(120)
-                    r = _audit_open_dialog(page, "room_join", spec.width, spec.height, check_keyboard_sel=".code-box")
-                    checked += 1
-                    if not r["ok"]:
-                        failures.append(f"{size_name}/{theme}/room_join: {r}")
-                    if is_full:
-                        save_screenshot(page, f"{size_name}_{theme}_room_join.png", out_dir)
+                    _rec("room_join_empty", size_name, theme, _audit_open_dialog(page, "room_join_empty", spec.width, spec.height, check_keyboard_sel=".code-box"))
 
-                    # Create a real room & audit waiting view
+                    # Fill wrong code & submit to audit error state
+                    boxes = page.locator(".code-box")
+                    for i, ch in enumerate("ZZZZZZ"):
+                        boxes.nth(i).fill(ch)
+                    page.locator(".modal-join-room").click()
+                    page.wait_for_timeout(250)
+                    _rec("room_join_wrong", size_name, theme, _audit_open_dialog(page, "room_join_wrong", spec.width, spec.height))
+
                     page.locator('[data-rtab="create"]').click()
                     page.wait_for_selector(".modal-create-room", timeout=3000)
                     page.locator(".modal-create-room").click()
                     page.wait_for_selector(".room-code-tile", timeout=4000)
                     page.wait_for_timeout(120)
-                    r = _audit_open_dialog(page, "room_waiting", spec.width, spec.height)
-                    checked += 1
-                    if not r["ok"]:
-                        failures.append(f"{size_name}/{theme}/room_waiting: {r}")
-                    if is_full and theme == "go-lim":
-                        save_screenshot(page, f"{size_name}_room_waiting.png", out_dir)
+                    _rec("room_waiting", size_name, theme, _audit_open_dialog(page, "room_waiting", spec.width, spec.height))
                     page.locator(".modal-leave-room").click()
                     page.wait_for_timeout(100)
 
-                    # 4. AI setup & Local setup
+                    # 4. Extended dialogs on full sizes (go-lim)
                     if is_full and theme == "go-lim":
                         for tile, tag in (("ai", "ai_setup"), ("local", "local_setup")):
                             page.locator(f'[data-tile="{tile}"]').click()
                             page.wait_for_selector(".modal-card", timeout=3000)
-                            r = _audit_open_dialog(page, tag, spec.width, spec.height)
-                            checked += 1
-                            if not r["ok"]:
-                                failures.append(f"{size_name}/{theme}/{tag}: {r}")
+                            _rec(tag, size_name, theme, _audit_open_dialog(page, tag, spec.width, spec.height))
                             page.locator(".modal-cancel").click()
                             page.wait_for_timeout(80)
 
-                        # 5. Settings modal (account + game tabs)
+                        # Settings modal (all 4 tabs: account, appearance, game, audio)
                         page.locator('[data-act="settings"]').click()
                         page.wait_for_selector(".settings-modal", timeout=3000)
-                        r = _audit_open_dialog(page, "settings_account", spec.width, spec.height, check_keyboard_sel="#set-nickname")
-                        checked += 1
-                        if not r["ok"]:
-                            failures.append(f"{size_name}/{theme}/settings_account: {r}")
-                        page.locator('.settings-tab[data-tab="game"]').click()
-                        page.wait_for_timeout(80)
-                        r = _audit_open_dialog(page, "settings_game", spec.width, spec.height)
-                        checked += 1
-                        if not r["ok"]:
-                            failures.append(f"{size_name}/{theme}/settings_game: {r}")
+                        _rec("settings_account", size_name, theme, _audit_open_dialog(page, "settings_account", spec.width, spec.height, check_keyboard_sel="#set-nickname"))
+                        for tab_id in ("appearance", "game", "audio"):
+                            tbtn = page.locator(f'.settings-tab[data-tab="{tab_id}"]')
+                            if tbtn.count() > 0:
+                                tbtn.click()
+                                page.wait_for_timeout(80)
+                                _rec(f"settings_{tab_id}", size_name, theme, _audit_open_dialog(page, f"settings_{tab_id}", spec.width, spec.height))
                         page.locator(".settings-close").click()
                         page.wait_for_timeout(80)
 
-                        # 6. Save/Export & Resign confirm on game screen
+                        # Save/Export + Resign confirm on game screen
                         page.goto(f"{base}/?test&seed=42&theme={theme}#/play/cotuong/ai?side=red&level=tap-su&engine=js", wait_until="networkidle")
                         page.wait_for_selector("svg.board-svg")
                         page.wait_for_timeout(180)
@@ -258,12 +251,45 @@ def run_crawler(out_dir: Path, baseline: bool = False) -> dict[str, Any]:
                         if save_btn.is_visible():
                             save_btn.click()
                             page.wait_for_selector(".modal-card", timeout=3000)
-                            r = _audit_open_dialog(page, "export_menu", spec.width, spec.height)
-                            checked += 1
-                            if not r["ok"]:
-                                failures.append(f"{size_name}/{theme}/export_menu: {r}")
+                            _rec("export_menu", size_name, theme, _audit_open_dialog(page, "export_menu", spec.width, spec.height))
                             page.locator(".modal-close").click()
                             page.wait_for_timeout(80)
+
+                        resign_btn = page.locator('[data-testid="mobile-controls"] [data-maction="resign"], #side-panel [data-action="resign"]').first
+                        if resign_btn.is_visible():
+                            resign_btn.click()
+                            page.wait_for_selector(".modal-resign-confirm", timeout=3000)
+                            _rec("resign_confirm", size_name, theme, _audit_open_dialog(page, "resign_confirm", spec.width, spec.height))
+                            page.locator(".modal-cancel").click()
+                            page.wait_for_timeout(80)
+
+                        # Import dialog on library screen + Analysis setup on seeded archive game
+                        page.goto(f"{base}/?test&seed=42&theme={theme}#/library", wait_until="networkidle")
+                        page.wait_for_selector('[data-act="import"]', timeout=4000)
+                        page.locator('[data-act="import"]').click()
+                        page.wait_for_selector(".modal-card", timeout=3000)
+                        _rec("import_modal", size_name, theme, _audit_open_dialog(page, "import_modal", spec.width, spec.height))
+                        page.keyboard.press("Escape")
+                        page.wait_for_timeout(80)
+
+                        # Seed finished Xiangqi game & check analysis setup modal
+                        page.evaluate("""async () => {
+                            if (!window.__gameStore) return;
+                            await window.__gameStore.saveGame({
+                                schemaVersion: 1, id: 'dlg-an-xq',
+                                createdAt: '2026-11-25T10:00:00.000Z', updatedAt: '2026-11-25T10:00:00.000Z',
+                                variant: 'xiangqi', mode: 'local',
+                                red: { name: 'Đỏ', kind: 'human' }, black: { name: 'Đen', kind: 'human' },
+                                result: 'black', reason: 'resign',
+                                start: { fen: 'rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1' },
+                                moves: [{ m: 'h2e2' }, { m: 'h9g7' }], source: 'manual',
+                            });
+                        }""")
+                        page.goto(f"{base}/?test&seed=42&theme={theme}#/play/cotuong/review?id=dlg-an-xq&analyze=1", wait_until="networkidle")
+                        page.wait_for_selector(".modal-an-start", timeout=4000)
+                        _rec("analysis_setup", size_name, theme, _audit_open_dialog(page, "analysis_setup", spec.width, spec.height))
+                        page.locator(".modal-cancel").click()
+                        page.wait_for_timeout(80)
 
                 all_errors.extend(f"[{size_name}] {e}" for e in errs)
                 ctx.close()
@@ -277,6 +303,10 @@ def run_crawler(out_dir: Path, baseline: bool = False) -> dict[str, Any]:
 
     return {
         "status": "PASS" if (not failures and not offline_btns_bug and not all_errors) else "FAIL",
+        "engine": engine_name,
+        "sizes_count": len(sizes_to_run),
+        "unique_dialogs": len(visited_dialogs),
+        "dialog_names": sorted(visited_dialogs),
         "checked": checked,
         "failure_count": len(failures),
         "failures": failures[:12],
@@ -289,16 +319,21 @@ def run_crawler(out_dir: Path, baseline: bool = False) -> dict[str, Any]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--baseline", action="store_true")
+    ap.add_argument("--webkit", action="store_true")
     ap.add_argument("--out-dir", type=str, default=str(ROOT / "preview" / "dialogs"))
     ap.add_argument("--json-out", type=str, default="")
     args = ap.parse_args()
 
-    res = run_crawler(Path(args.out_dir), baseline=args.baseline)
+    res = run_crawler(Path(args.out_dir), baseline=args.baseline, use_webkit=args.webkit)
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print("=== verify_dialogs.py ===")
-    print(f"  status={res['status']} checked={res['checked']} failures={res['failure_count']} offline_bug={len(res['offline_btns_bug'])} console_errors={res['console_errors']}")
+    print(f"=== verify_dialogs.py ({res['engine']}) ===")
+    print(
+        f"  status={res['status']} sizes={res['sizes_count']} unique_dialogs={res['unique_dialogs']} "
+        f"checked={res['checked']} failures={res['failure_count']} offline_bug={len(res['offline_btns_bug'])} "
+        f"console_errors={res['console_errors']}"
+    )
     for f in res["failures"]:
         print("   FAIL:", f)
     for b in res["offline_btns_bug"]:

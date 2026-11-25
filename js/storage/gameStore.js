@@ -7,8 +7,9 @@ import { createGameRecord, sanitizeNote, RECORD_SCHEMA_VERSION } from './gameRec
 import { validateAndNormalizeRecord } from './validate.js';
 
 export const DB_NAME = 'xq_games_v1';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 export const MAX_SAVED_GAMES = 200;
+export const MAX_SAVED_ANALYSES = 100;
 
 export const AUTOSAVE_SLOTS = [
   'xiangqi:local',
@@ -39,6 +40,7 @@ export class GameStore {
    */
   constructor(opts = {}) {
     this.maxGames = opts.maxGames ?? MAX_SAVED_GAMES;
+    this.maxAnalyses = opts.maxAnalyses ?? MAX_SAVED_ANALYSES;
     this.onError = opts.onError || (() => {});
     this.simulateQuotaError = Boolean(opts.simulateQuotaError);
     this.memoryFallback = Boolean(opts.memoryOnly);
@@ -51,6 +53,8 @@ export class GameStore {
     this._memGames = new Map();
     /** @type {Map<string, any>} */
     this._memAutosave = new Map();
+    /** @type {Map<string, any>} */
+    this._memAnalysis = new Map();
   }
 
   _notifyFallback(code = 'IDB_UNAVAILABLE', message = FALLBACK_BANNER_MSG) {
@@ -94,6 +98,10 @@ export class GameStore {
             }
             if (!db.objectStoreNames.contains('autosave')) {
               db.createObjectStore('autosave', { keyPath: 'slot' });
+            }
+            if (!db.objectStoreNames.contains('analysis')) {
+              const aStore = db.createObjectStore('analysis', { keyPath: 'key' });
+              aStore.createIndex('updatedAt', 'updatedAt', { unique: false });
             }
           };
           req.onsuccess = () => {
@@ -439,13 +447,102 @@ export class GameStore {
     }
   }
 
+  async _readAllAnalysesRaw() {
+    if (this.memoryFallback) return [...this._memAnalysis.values()];
+    try {
+      const db = await this._getDb();
+      if (!db) return [...this._memAnalysis.values()];
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction('analysis', 'readonly');
+        const req = tx.objectStore('analysis').getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      return [...this._memAnalysis.values()];
+    }
+  }
+
+  async listAnalyses() {
+    const all = await this._readAllAnalysesRaw();
+    all.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+    return all;
+  }
+
+  async getAnalysis(key) {
+    if (!key) return null;
+    if (this.memoryFallback || !(await this._getDb())) {
+      const hit = this._memAnalysis.get(key);
+      return hit ? structuredClone(hit) : null;
+    }
+    try {
+      const db = await this._getDb();
+      return await new Promise((resolve) => {
+        const tx = db.transaction('analysis', 'readonly');
+        const req = tx.objectStore('analysis').get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch {
+      return this._memAnalysis.get(key) || null;
+    }
+  }
+
+  async putAnalysis(entry, { pruneOldest = true } = {}) {
+    if (!entry || !entry.key) return { ok: false, error: 'INVALID_KEY' };
+    const clean = { ...entry, updatedAt: entry.updatedAt || new Date().toISOString() };
+    const all = await this._readAllAnalysesRaw();
+    const exists = all.some((a) => a.key === clean.key);
+    if (!exists && all.length >= this.maxAnalyses) {
+      if (!pruneOldest) {
+        return { ok: false, error: 'CAP_REACHED', cap: this.maxAnalyses };
+      }
+      all.sort((a, b) => String(a.updatedAt || '').localeCompare(String(b.updatedAt || '')));
+      const toRemove = all.slice(0, all.length - this.maxAnalyses + 1);
+      for (const old of toRemove) {
+        await this.deleteAnalysis(old.key);
+      }
+    }
+    this._memAnalysis.set(clean.key, structuredClone(clean));
+    if (this.memoryFallback || !(await this._getDb())) {
+      return { ok: true, key: clean.key };
+    }
+    try {
+      await this._idbTx('analysis', 'readwrite', (store) => {
+        store.put(clean);
+      });
+      return { ok: true, key: clean.key };
+    } catch (err) {
+      if (isQuotaError(err)) {
+        this._notifyError('QUOTA_EXCEEDED', QUOTA_ERR_MSG);
+        return { ok: false, error: 'QUOTA_EXCEEDED' };
+      }
+      return { ok: true, key: clean.key };
+    }
+  }
+
+  async deleteAnalysis(key) {
+    if (!key) return;
+    this._memAnalysis.delete(key);
+    if (this.memoryFallback || !(await this._getDb())) return;
+    try {
+      await this._idbTx('analysis', 'readwrite', (store) => {
+        store.delete(key);
+      });
+    } catch {
+      // ignore
+    }
+  }
+
   async clearAll() {
     this._memGames.clear();
     this._memAutosave.clear();
+    this._memAnalysis.clear();
     if (this.memoryFallback || !(await this._getDb())) return;
     try {
       await this._idbTx('games', 'readwrite', (s) => s.clear());
       await this._idbTx('autosave', 'readwrite', (s) => s.clear());
+      await this._idbTx('analysis', 'readwrite', (s) => s.clear());
     } catch {
       // ignore
     }

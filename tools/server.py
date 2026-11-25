@@ -137,6 +137,12 @@ def parse_info_line(line: str):
             except ValueError:
                 pass
             i += 3
+        elif t == "wdl" and i + 3 < len(tokens):
+            try:
+                info["wdl"] = [int(tokens[i + 1]), int(tokens[i + 2]), int(tokens[i + 3])]
+            except ValueError:
+                pass
+            i += 4
         elif t == "pv":
             info["pv"] = tokens[i + 1 :]
             break
@@ -159,7 +165,10 @@ class PikafishManager:
         self._options = []
         self._option_names = set()
         self._active_search_id = None
+        self._active_analysis_id = None
+        self._cancel_analysis_id = None
         self._streams = {}  # search_id -> list[queue.Queue]
+        self._stream_history = {}  # search_id -> list[dict] (for analysis replay)
         self._default_threads = max(1, min(4, (os.cpu_count() or 2) - 1))
 
     def _load_cfg(self):
@@ -250,6 +259,8 @@ class PikafishManager:
                 self._send(f"setoption name Threads value {self._default_threads}")
             if "Hash" in self._option_names:
                 self._send("setoption name Hash value 128")
+            if "UCI_ShowWDL" in self._option_names:
+                self._send("setoption name UCI_ShowWDL value true")
 
             self._send("isready")
             self._drain_until("readyok", timeout=20.0)
@@ -288,6 +299,16 @@ class PikafishManager:
             self._stop_proc_locked()
 
     def info(self):
+        # Fast non-blocking path when engine is already running (avoids stalling during active analysis)
+        if self._proc is not None and self._proc.poll() is None and self._cfg:
+            return {
+                "available": True,
+                "name": self._name,
+                "version": self._cfg.get("version"),
+                "cpu_build": self._cfg.get("cpu_build"),
+                "default_threads": self._default_threads,
+                "options": self._options,
+            }
         with self._cmd_lock:
             ok = self._ensure_started_locked()
             if not ok:
@@ -312,6 +333,8 @@ class PikafishManager:
         q = queue.Queue()
         with self._state_lock:
             self._streams.setdefault(search_id, []).append(q)
+            for prev in self._stream_history.get(search_id, ()):
+                q.put(prev)
         return q
 
     def unsubscribe_stream(self, search_id: str, q: queue.Queue):
@@ -322,15 +345,24 @@ class PikafishManager:
                 if not lst:
                     self._streams.pop(search_id, None)
 
-    def _broadcast_stream(self, search_id: str, payload: dict):
+    def _broadcast_stream(self, search_id: str, payload: dict, record: bool = False):
         with self._state_lock:
+            if record:
+                buf = self._stream_history.setdefault(search_id, [])
+                buf.append(payload)
+                if len(buf) > 700:
+                    del buf[:-700]
             listeners = list(self._streams.get(search_id, ()))
         for q in listeners:
             q.put(payload)
 
     def stop_search(self, search_id: str):
         with self._state_lock:
-            if self._active_search_id == search_id and self._proc and self._proc.poll() is None:
+            is_analysis = self._active_analysis_id and (search_id in (self._active_analysis_id, "*", ""))
+            is_search = self._active_search_id and (search_id in (self._active_search_id, "*", ""))
+            if is_analysis:
+                self._cancel_analysis_id = self._active_analysis_id
+            if (is_search or is_analysis) and self._proc and self._proc.poll() is None:
                 try:
                     self._send("stop")
                 except Exception:
@@ -451,12 +483,15 @@ class PikafishManager:
                         parsed = parse_info_line(line)
                         if "depth" in parsed and "score" in parsed and "pv" in parsed:
                             pv_idx = parsed.get("multipv", 1)
-                            lines_by_pv[pv_idx] = {
+                            line_obj = {
                                 "move": parsed["pv"][0],
                                 "score": parsed["score"],
                                 "depth": parsed["depth"],
                                 "pv": parsed["pv"],
                             }
+                            if "wdl" in parsed:
+                                line_obj["wdl"] = parsed["wdl"]
+                            lines_by_pv[pv_idx] = line_obj
                             if pv_idx == 1:
                                 last_info = {
                                     "depth": parsed["depth"],
@@ -465,6 +500,8 @@ class PikafishManager:
                                     "nps": parsed.get("nps", last_info["nps"]),
                                     "pv": parsed["pv"],
                                 }
+                                if "wdl" in parsed:
+                                    last_info["wdl"] = parsed["wdl"]
                                 self._broadcast_stream(search_id, {"type": "info", "id": search_id, **last_info})
                     elif line.startswith("bestmove "):
                         parts = line.split()
@@ -487,6 +524,8 @@ class PikafishManager:
                     "pv": last_info["pv"],
                     "elapsed_ms": elapsed_ms,
                 }
+                if "wdl" in last_info:
+                    result["wdl"] = last_info["wdl"]
                 if multipv > 1:
                     result["lines"] = ordered_lines
                 return 200, result
@@ -499,6 +538,201 @@ class PikafishManager:
                     if self._active_search_id == search_id:
                         self._active_search_id = None
                 self._broadcast_stream(search_id, {"type": "done", "id": search_id})
+
+    def analyze(self, req: dict):
+        """Start a multi-position game analysis streaming 'pos' and 'done' over SSE."""
+        analysis_id = str(req.get("id") or f"an_{int(time.time() * 1000)}")[:64]
+        start_fen = req.get("startFen") or req.get("fen") or ""
+        moves = req.get("moves") or []
+        movetime_ms = req.get("movetime_ms", 150)
+        depth = req.get("depth")
+        multipv = req.get("multipv", 2)
+        from_ply = req.get("fromPly", 0)
+        to_ply = req.get("toPly", len(moves) if isinstance(moves, list) else 0)
+
+        if not isinstance(start_fen, str) or "\n" in start_fen or "\r" in start_fen or not FEN_RE.match(start_fen.strip()):
+            return 400, {"error": "Invalid startFen"}
+        start_fen = start_fen.strip()
+
+        if not isinstance(moves, list) or len(moves) > 600:
+            return 400, {"error": "Invalid moves list"}
+        clean_moves = []
+        for mv in moves:
+            if not isinstance(mv, str) or not MOVE_RE.match(mv):
+                return 400, {"error": f"Invalid move coordinate: {mv!r}"}
+            clean_moves.append(mv)
+
+        try:
+            multipv = max(1, min(3, int(multipv)))
+        except (TypeError, ValueError):
+            return 400, {"error": "Invalid multipv"}
+
+        go_parts = ["go"]
+        if depth is not None:
+            try:
+                d_val = max(1, min(30, int(depth)))
+            except (TypeError, ValueError):
+                return 400, {"error": "Invalid depth"}
+            go_parts.extend(["depth", str(d_val)])
+        else:
+            try:
+                t_val = max(20, min(10000, int(movetime_ms)))
+            except (TypeError, ValueError):
+                return 400, {"error": "Invalid movetime_ms"}
+            go_parts.extend(["movetime", str(t_val)])
+        go_cmd = " ".join(go_parts)
+
+        # Reject concurrent search/analysis with 409 Conflict
+        if not self._cmd_lock.acquire(blocking=False):
+            return 409, {"error": "Engine busy"}
+
+        with self._state_lock:
+            self._active_analysis_id = analysis_id
+            self._cancel_analysis_id = None
+            self._stream_history[analysis_id] = []
+
+        try:
+            start_ply = max(0, min(len(clean_moves), int(from_ply)))
+            end_ply = max(start_ply, min(len(clean_moves), int(to_ply)))
+        except (TypeError, ValueError):
+            return 400, {"error": "Invalid ply range"}
+
+        total = end_ply - start_ply + 1
+
+        def _worker():
+            analyzed = 0
+            cancelled = False
+            try:
+                if not self._ensure_started_locked():
+                    self._broadcast_stream(
+                        analysis_id,
+                        {"type": "error", "id": analysis_id, "error": "Engine unavailable"},
+                        record=True,
+                    )
+                    return
+
+                if "MultiPV" in self._option_names:
+                    self._send(f"setoption name MultiPV value {multipv}")
+                if "UCI_ShowWDL" in self._option_names:
+                    self._send("setoption name UCI_ShowWDL value true")
+                self._send("ucinewgame")
+                self._send("isready")
+                self._drain_until("readyok", timeout=8.0)
+
+                for ply in range(start_ply, end_ply + 1):
+                    with self._state_lock:
+                        if self._cancel_analysis_id == analysis_id:
+                            cancelled = True
+                            break
+
+                    pos_cmd = f"position fen {start_fen}"
+                    if ply > 0:
+                        pos_cmd += " moves " + " ".join(clean_moves[:ply])
+                    self._send(pos_cmd)
+                    self._send("isready")
+                    self._drain_until("readyok", timeout=5.0)
+                    self._send(go_cmd)
+
+                    lines_by_pv = {}
+                    last_info = {"depth": 0, "score": {"cp": 0}, "pv": []}
+                    bestmove = None
+                    deadline = time.monotonic() + 15.0
+
+                    while True:
+                        rem = deadline - time.monotonic()
+                        if rem <= 0:
+                            self._send("stop")
+                            deadline = time.monotonic() + 2.0
+                            continue
+                        try:
+                            line = self._stdout_q.get(timeout=min(0.1, rem))
+                        except queue.Empty:
+                            if self._proc and self._proc.poll() is not None:
+                                raise RuntimeError("Engine crashed during analysis")
+                            continue
+                        if line is None:
+                            raise RuntimeError("Engine stdout closed during analysis")
+
+                        if line.startswith("info "):
+                            parsed = parse_info_line(line)
+                            if "score" in parsed and "mate" in parsed["score"] and parsed["score"]["mate"] == 0:
+                                last_info = {"depth": parsed.get("depth", 0), "score": {"mate": 0}, "pv": []}
+                            elif "depth" in parsed and "score" in parsed and "pv" in parsed:
+                                pv_idx = parsed.get("multipv", 1)
+                                lo = {
+                                    "move": parsed["pv"][0],
+                                    "score": parsed["score"],
+                                    "depth": parsed["depth"],
+                                    "pv": parsed["pv"],
+                                }
+                                if "wdl" in parsed:
+                                    lo["wdl"] = parsed["wdl"]
+                                lines_by_pv[pv_idx] = lo
+                                if pv_idx == 1:
+                                    last_info = lo
+                        elif line.startswith("bestmove "):
+                            parts = line.split()
+                            if len(parts) >= 2 and parts[1] not in ("(none)", "0000"):
+                                bestmove = parts[1]
+                            else:
+                                last_info["score"] = {"mate": 0}
+                            break
+
+                    with self._state_lock:
+                        if self._cancel_analysis_id == analysis_id:
+                            cancelled = True
+                            break
+
+                    ordered_lines = [lines_by_pv[k] for k in sorted(lines_by_pv.keys())]
+                    pos_payload = {
+                        "type": "pos",
+                        "id": analysis_id,
+                        "ply": ply,
+                        "total": total,
+                        "bestmove": bestmove,
+                        "score": last_info.get("score", {"cp": 0}),
+                        "depth": last_info.get("depth", 0),
+                        "lines": ordered_lines,
+                    }
+                    if "wdl" in last_info:
+                        pos_payload["wdl"] = last_info["wdl"]
+                    analyzed += 1
+                    self._broadcast_stream(analysis_id, pos_payload, record=True)
+            except Exception as exc:
+                LOG.error("Analysis failed (%s), restarting engine", exc)
+                self._stop_proc_locked()
+                self._broadcast_stream(
+                    analysis_id,
+                    {"type": "error", "id": analysis_id, "error": str(exc)},
+                    record=True,
+                )
+            finally:
+                with self._state_lock:
+                    if self._active_analysis_id == analysis_id:
+                        self._active_analysis_id = None
+                    if self._cancel_analysis_id == analysis_id:
+                        self._cancel_analysis_id = None
+                self._broadcast_stream(
+                    analysis_id,
+                    {
+                        "type": "done",
+                        "id": analysis_id,
+                        "cancelled": cancelled,
+                        "analyzed": analyzed,
+                        "total": total,
+                    },
+                    record=True,
+                )
+                self._cmd_lock.release()
+                # Clean up history buffer after a short grace window
+                def _cleanup_hist():
+                    time.sleep(30.0)
+                    with self._state_lock:
+                        self._stream_history.pop(analysis_id, None)
+                threading.Thread(target=_cleanup_hist, daemon=True).start()
+
+        threading.Thread(target=_worker, daemon=True).start()
+        return 202, {"id": analysis_id, "total": total}
 
 
 ENGINE = PikafishManager()
@@ -556,6 +790,13 @@ class BridgeHandler(http.server.SimpleHTTPRequestHandler):
             sid = (qs.get("id") or ["0"])[0][:64]
             self._handle_sse(sid)
             return
+        if parsed.path == "/api/online/info":
+            self._send_json(200, {"ok": False, "onlineCount": 0, "activeGames": 0})
+            return
+        if parsed.path == "/favicon.ico" and not (ROOT / "favicon.ico").exists():
+            self.send_response(204)
+            self.end_headers()
+            return
         if parsed.path == "/assets/voice/manifest.json" and not (ROOT / "assets" / "voice" / "manifest.json").exists():
             self._send_json(200, {"empty": True, "files": {}})
             return
@@ -571,6 +812,14 @@ class BridgeHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(*err)
                 return
             code, res = ENGINE.search(body)
+            self._send_json(code, res)
+            return
+        if parsed.path == "/api/engine/analyze":
+            body, err = self._read_json_body()
+            if err:
+                self._send_json(*err)
+                return
+            code, res = ENGINE.analyze(body)
             self._send_json(code, res)
             return
         if parsed.path == "/api/engine/stop":
@@ -595,7 +844,7 @@ class BridgeHandler(http.server.SimpleHTTPRequestHandler):
 
         q = ENGINE.subscribe_stream(search_id)
         try:
-            deadline = time.monotonic() + 35.0
+            deadline = time.monotonic() + 600.0
             while time.monotonic() < deadline:
                 try:
                     msg = q.get(timeout=0.5)

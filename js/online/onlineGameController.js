@@ -445,6 +445,7 @@ export class OnlineGameBridge {
           <p class="rematch-status" aria-live="polite" hidden></p>
           <div class="modal-actions">
             <button type="button" class="pill-btn modal-online-lobby">Về sảnh</button>
+            ${!this.controller.board.isJieqi ? '<button type="button" class="pill-btn modal-online-analyze">Phân tích ván</button>' : ''}
             <button type="button" class="pill-btn modal-online-export">Xuất</button>
             <button type="button" class="pill-btn pill-btn-gold modal-online-rematch">Tái đấu</button>
             <button type="button" class="pill-btn" data-rematch="cancel" hidden>Hủy lời mời</button>
@@ -458,6 +459,18 @@ export class OnlineGameBridge {
       this.sidePanel.closeModal();
       this.ctx.router.navigate('/');
     });
+    const analyzeBtn = modalRoot.querySelector('.modal-online-analyze');
+    if (analyzeBtn) {
+      analyzeBtn.addEventListener('click', async () => {
+        if (!this._lastFinishedRecord || !this.ctx.gameStore) return;
+        this.conn?.send('game.leave', { gameId: this.gameId });
+        const saved = await saveRecordWithPrunePrompt(this.ctx, this._lastFinishedRecord);
+        this.sidePanel.closeModal();
+        if (saved?.ok && saved.record?.id) {
+          this.ctx.router.navigate('/play/cotuong/review', { id: saved.record.id, analyze: '1' });
+        }
+      });
+    }
     modalRoot.querySelector('.modal-online-export').addEventListener('click', () => {
       if (this._lastFinishedRecord) {
         const b = this.controller.board;

@@ -5,6 +5,7 @@
  * online connection check, data reset, and About/Licenses.
  */
 import { isValidNickname, isValidServerUrl } from '../app/settings.js';
+import { openImportModal, triggerDownload } from './saveModals.js';
 
 const APP_VERSION = '1.0.0';
 
@@ -169,8 +170,27 @@ export function openSettingsModal(ctx, initialTab = 'account', returnFocusEl = n
       `;
     } else if (activeTab === 'data') {
       bodyHtml = `
-        <div class="set-field">
-          <p class="set-hint">Xóa toàn bộ cài đặt đã lưu trong trình duyệt (tên hiển thị, giao diện, âm lượng, tùy chọn gần nhất).</p>
+        <div class="set-group-title">Lưu ván tự động</div>
+        <label class="set-toggle">
+          <input type="checkbox" id="set-save-finished" ${s.storage?.saveFinishedGames !== false ? 'checked' : ''}>
+          <span>Tự lưu ván đã kết thúc vào Thư viện</span>
+        </label>
+        <label class="set-toggle">
+          <input type="checkbox" id="set-autosave-prog" ${s.storage?.autosaveInProgress !== false ? 'checked' : ''}>
+          <span>Tự lưu ván đang chơi dở để tiếp tục sau</span>
+        </label>
+        <div class="set-field" style="margin-top:10px">
+          <label>Thư viện ván đã lưu</label>
+          <div class="set-hint" id="set-storage-usage">Đang tính dung lượng…</div>
+          <div class="set-data-btns" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+            <button type="button" class="mini-seg-btn" data-act="open-library">Mở thư viện</button>
+            <button type="button" class="mini-seg-btn" data-act="export-all">Xuất tất cả</button>
+            <button type="button" class="mini-seg-btn" data-act="import-file">Nhập từ file</button>
+            <button type="button" class="mini-seg-btn" data-act="clear-games">Xóa tất cả ván đã lưu</button>
+          </div>
+        </div>
+        <div class="set-field" style="margin-top:14px">
+          <p class="set-hint">Xóa toàn bộ cài đặt đã lưu trong trình duyệt và toàn bộ ván cờ đã lưu.</p>
           <button type="button" class="pill-btn pill-btn-danger set-btn-sm" data-act="reset-data">Xóa dữ liệu đã lưu</button>
         </div>
       `;
@@ -315,9 +335,47 @@ export function openSettingsModal(ctx, initialTab = 'account', returnFocusEl = n
         }
       });
     } else if (activeTab === 'data') {
-      modalRoot.querySelector('[data-act="reset-data"]').addEventListener('click', () => {
-        if (window.confirm('Bạn có chắc muốn xóa toàn bộ dữ liệu cài đặt đã lưu?')) {
+      const usageEl = modalRoot.querySelector('#set-storage-usage');
+      if (ctx.gameStore && usageEl) {
+        ctx.gameStore.usage().then((u) => {
+          const kb = Math.max(1, Math.round(u.approxBytes / 1024));
+          usageEl.textContent = `${u.count} / ${u.cap} ván · khoảng ${kb} KB${u.memoryFallback ? ' (chỉ trong phiên)' : ''}`;
+        });
+      }
+      modalRoot.querySelector('#set-save-finished').addEventListener('change', (ev) => {
+        ctx.settingsStore.update((st) => {
+          st.storage.saveFinishedGames = ev.target.checked;
+        });
+      });
+      modalRoot.querySelector('#set-autosave-prog').addEventListener('change', (ev) => {
+        ctx.settingsStore.update((st) => {
+          st.storage.autosaveInProgress = ev.target.checked;
+        });
+      });
+      modalRoot.querySelector('[data-act="open-library"]').addEventListener('click', () => {
+        close();
+        ctx.router.navigate('/library');
+      });
+      modalRoot.querySelector('[data-act="export-all"]').addEventListener('click', async () => {
+        if (!ctx.gameStore) return;
+        const bundle = await ctx.gameStore.exportAll();
+        const date = new Date().toISOString().slice(0, 10);
+        triggerDownload(`xiangqi_library_${date}.xqgame.json`, JSON.stringify(bundle, null, 2));
+      });
+      modalRoot.querySelector('[data-act="import-file"]').addEventListener('click', () => {
+        close();
+        openImportModal(ctx);
+      });
+      modalRoot.querySelector('[data-act="clear-games"]').addEventListener('click', async () => {
+        if (ctx.gameStore && window.confirm('Xóa toàn bộ ván đã lưu trong Thư viện?')) {
+          await ctx.gameStore.deleteAllGames();
+          render();
+        }
+      });
+      modalRoot.querySelector('[data-act="reset-data"]').addEventListener('click', async () => {
+        if (window.confirm('Bạn có chắc muốn xóa toàn bộ dữ liệu cài đặt và ván đã lưu?')) {
           ctx.settingsStore.resetAll();
+          if (ctx.gameStore) await ctx.gameStore.clearAll();
           const st = ctx.settingsStore.get();
           ctx.setThemeById(st.theme);
           ctx.setVolume(st.audio.volume);

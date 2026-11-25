@@ -11,6 +11,8 @@ import { formatClockMs, formatOnlineReasonVi } from './protocol.js';
 import { parseIccs } from '../game/GameController.js';
 import { RED, BLACK, oppositeSide } from '../model/piece.js';
 import { moveToIccs } from '../model/moves.js';
+import { buildRecordFromBoard } from '../storage/gameRecord.js';
+import { openExportModal, saveRecordWithPrunePrompt } from '../ui/saveModals.js';
 import { leakTracker } from '../app/router.js';
 
 export class OnlineGameBridge {
@@ -267,6 +269,33 @@ export class OnlineGameBridge {
 
       const reasonText = formatOnlineReasonVi(msg.reason, msg.winner, this.mySide);
       const kind = !msg.winner ? 'draw' : msg.winner === this.mySide ? 'win' : 'lose';
+
+      const reasonMap = {
+        checkmate: 'checkmate',
+        stalemate: 'stalemate',
+        timeout: 'timeout',
+        resign: 'resign',
+        abandon: 'abandon',
+        draw_agreement: 'drawAgreed',
+        draw_repetition: 'repetition',
+        draw_no_capture: 'noCapture',
+      };
+      const finalRecord = buildRecordFromBoard({
+        board: this.controller.board,
+        variant: this.controller.board.isJieqi ? 'jieqi' : 'xiangqi',
+        mode: 'online',
+        red: { name: this.players.red?.nickname || 'Đỏ', kind: 'human' },
+        black: { name: this.players.black?.nickname || 'Đen', kind: 'human' },
+        tc: this.tc,
+        result: msg.winner || 'draw',
+        reason: reasonMap[msg.reason] || null,
+        source: 'autosave',
+      });
+      this._lastFinishedRecord = finalRecord;
+      if (this.ctx.gameStore && this.ctx.settingsStore.get().storage?.saveFinishedGames !== false) {
+        saveRecordWithPrunePrompt(this.ctx, finalRecord);
+      }
+
       this._showOnlineGameOverModal(reasonText, kind, msg.ply || this.controller.board.history.length);
     });
 
@@ -367,6 +396,7 @@ export class OnlineGameBridge {
           <p class="gameover-stats">Số nước: ${plies}</p>
           <div class="modal-actions">
             <button type="button" class="pill-btn modal-online-lobby">Về sảnh</button>
+            <button type="button" class="pill-btn modal-online-export">Xuất</button>
             <button type="button" class="pill-btn pill-btn-gold modal-online-rematch">Tái đấu</button>
           </div>
         </div>
@@ -376,6 +406,16 @@ export class OnlineGameBridge {
     modalRoot.querySelector('.modal-online-lobby').addEventListener('click', () => {
       this.sidePanel.closeModal();
       this.ctx.router.navigate('/');
+    });
+    modalRoot.querySelector('.modal-online-export').addEventListener('click', () => {
+      if (this._lastFinishedRecord) {
+        const b = this.controller.board;
+        openExportModal(this.ctx, {
+          record: this._lastFinishedRecord,
+          currentFen: b.isJieqi ? b.publicFen() : b.toFen(),
+          allowSaveToLibrary: true,
+        });
+      }
     });
     const rematchBtn = modalRoot.querySelector('.modal-online-rematch');
     rematchBtn.addEventListener('click', () => {

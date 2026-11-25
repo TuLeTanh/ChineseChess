@@ -11,7 +11,10 @@ import { Router, buildHash } from './app/router.js';
 import { createGameScreen } from './screens/gameScreen.js';
 import { createLobbyScreen } from './screens/lobbyScreen.js';
 import { createModeScreen } from './screens/modeScreen.js';
+import { createLibraryScreen } from './screens/libraryScreen.js';
+import { createReplayScreen } from './screens/replayScreen.js';
 import { openQuickMatchModal, openRoomModal } from './online/onlineModals.js';
+import { gameStore } from './storage/gameStore.js';
 import {
   mountEffectsPage,
   mountVoicesPage,
@@ -74,11 +77,33 @@ async function init() {
     return;
   }
 
+  // Non-blocking storage status banner (shown on IndexedDB fallback or QuotaExceededError)
+  const storageBanner = document.createElement('div');
+  storageBanner.className = 'storage-status-banner';
+  storageBanner.setAttribute('role', 'status');
+  storageBanner.hidden = true;
+  document.body.appendChild(storageBanner);
+  let bannerTimer = null;
+  const showStorageBanner = (msg) => {
+    storageBanner.textContent = msg;
+    storageBanner.hidden = false;
+    if (bannerTimer) window.clearTimeout(bannerTimer);
+    bannerTimer = window.setTimeout(() => {
+      storageBanner.hidden = true;
+    }, 6000);
+  };
+  gameStore.onError = ({ message }) => {
+    if (message) showStorageBanner(message);
+  };
+  if (isTestMode) window.__gameStore = gameStore;
+
   const ctx = {
     testMode: isTestMode,
     modalRoot,
     sfx,
     settingsStore,
+    gameStore,
+    showStorageBanner,
     getTheme: () => theme,
     setThemeById(id) {
       theme = getTheme(id);
@@ -181,7 +206,9 @@ async function init() {
       online: () => createModeScreen(ctx),
       room: () => createModeScreen(ctx),
       join: () => createModeScreen(ctx),
-      play: () => createGameScreen(ctx),
+      library: () => createLibraryScreen(ctx),
+      replay: () => createReplayScreen(ctx),
+      play: (route) => (route.mode === 'review' ? createReplayScreen(ctx) : createGameScreen(ctx)),
     },
   });
   ctx.router = router;

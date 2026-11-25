@@ -4,7 +4,7 @@
  * Parameterised by variant (xiangqi / jieqi) and mode (local / ai / online).
  */
 import { Board } from '../model/board.js';
-import { JieqiBoard } from '../jieqi/rules.js';
+import { JieqiBoard, LETTER_TO_KIND } from '../jieqi/rules.js';
 import { START_FEN } from '../model/fen.js';
 import { RED, BLACK } from '../model/piece.js';
 import { GameStatus } from '../rules.js';
@@ -64,6 +64,7 @@ export class GameController {
     this.aiClient = opts.aiClient;
     this.pikafishClient = opts.pikafishClient;
     this.testMode = Boolean(opts.testMode);
+    this.onPersistHook = opts.onPersistHook || (() => {});
 
     this.board = this.variant.createInitialState({ fen: this.gameStartFen });
     this.activeRules = this.variant.createRules(this.practiceMode);
@@ -549,11 +550,16 @@ export class GameController {
         if (!isHumanLoss) {
           this.sfx.play('checkmate', 0);
         }
+        this.onPersistHook({ event: 'gameover', status: this.lastStatus, isResign: false });
         this.triggerEndCinematic(this.lastStatus, false);
       } else if (isDraw) {
         this.sfx.play('draw', 0);
+        this.onPersistHook({ event: 'gameover', status: this.lastStatus, isResign: false });
         this.triggerEndCinematic(this.lastStatus, false);
       }
+    }
+    if (!this.isGameOver()) {
+      this.onPersistHook({ event: 'move', move });
     }
 
     if (this.mode === 'local' && this.autoFlipLocal && !this.isGameOver() && this.boardView) {
@@ -612,6 +618,7 @@ export class GameController {
       this.sidePanel.autoPlaying = false;
     }
     this.evaluateStatus({ type: 'reset' });
+    this.onPersistHook({ event: 'reset' });
     if (playStartSfx) this.sfx.play('start');
     if (this.mode === 'ai' && this.board.sideToMove !== this.playerSide) {
       this.maybeTriggerAiTurn();
@@ -692,6 +699,7 @@ export class GameController {
     this.boardView.undo();
     this.viewPly = this.board.history.length;
     this.updateViewHook();
+    this.onPersistHook({ event: 'undo' });
   }
 
   async handleHint() {
@@ -723,7 +731,71 @@ export class GameController {
     if (this.sidePanel) this.sidePanel.setResigned(true);
     if (this.boardView) this.boardView.setLocked(true);
     if (this.sidePanel) this.sidePanel.update(this.lastStatus);
+    this.onPersistHook({ event: 'gameover', status: this.lastStatus, isResign: true });
     this.triggerEndCinematic(this.lastStatus, true);
+  }
+
+  /**
+   * Restore an autosave snapshot exactly (board, history, clocks, Jieqi secretLocal, AI config).
+   */
+  restoreAutosave(snapshot) {
+    if (!snapshot || !snapshot.record) return false;
+    const rec = snapshot.record;
+    this.gameStartFen = rec.start.fen;
+    if (this.board.isJieqi) {
+      this.board.loadPublicFen(rec.start.fen);
+    } else {
+      this.board.loadFen(rec.start.fen);
+    }
+    for (const mv of rec.moves || []) {
+      const { from, to } = parseIccs(mv.m);
+      const ext =
+        this.board.isJieqi && (mv.r || mv.cr)
+          ? {
+              type: mv.r ? LETTER_TO_KIND[mv.r] : undefined,
+              capturedType: mv.cr ? LETTER_TO_KIND[mv.cr] : undefined,
+            }
+          : null;
+      this.board.applyMove(from, to, ext);
+    }
+    if (this.board.isJieqi && snapshot.secretLocal && typeof snapshot.secretLocal === 'object') {
+      this.board._secret = new Map(Object.entries(snapshot.secretLocal));
+    }
+    if (typeof snapshot.halfmoveClock === 'number') {
+      this.board.halfmoveClock = snapshot.halfmoveClock;
+    }
+    if (Array.isArray(snapshot.positionHistory) && snapshot.positionHistory.length > 0) {
+      this.board.positionHistory = [...snapshot.positionHistory];
+    }
+    if (snapshot.ai) {
+      if (snapshot.ai.side) this.playerSide = snapshot.ai.side;
+      if (snapshot.ai.level) this.aiLevel = snapshot.ai.level;
+      if (snapshot.ai.engine) this.engineType = snapshot.ai.engine;
+    }
+    if (typeof snapshot.free === 'boolean' && this.mode === 'local') {
+      this.practiceMode = snapshot.free;
+      this.activeRules = this.variant.createRules(this.practiceMode);
+    }
+    this.viewPly = this.board.history.length;
+    this.inReviewMode = false;
+    this.hasNewLiveMoves = false;
+    if (this.boardView) {
+      this.boardView.setRules(this.activeRules, this.practiceMode);
+      if (this.mode === 'ai') {
+        this.boardView.setHumanSide(this.playerSide);
+        this.boardView.setFlipped(this.playerSide === BLACK);
+      }
+      this.boardView.syncAfterReset();
+    }
+    if (this.sidePanel) {
+      this.sidePanel.playerSide = this.playerSide;
+      this.sidePanel.aiLevel = this.aiLevel;
+    }
+    this.evaluateStatus({ type: 'reset' });
+    if (this.mode === 'ai' && !this.isGameOver() && this.board.sideToMove !== this.playerSide) {
+      this.maybeTriggerAiTurn();
+    }
+    return true;
   }
 
   dispose() {

@@ -41,10 +41,16 @@ export function parseHash(hashStr) {
     const code = parts[1].toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     return { name: 'join', code, path: `/join/${code}`, query };
   }
+  if (parts[0] === 'library') {
+    return { name: 'library', id: parts[1] || null, path: '/library', query };
+  }
+  if (parts[0] === 'replay') {
+    return { name: 'replay', path: '/replay', query };
+  }
   if (
     parts[0] === 'play' &&
     (parts[1] === 'cotuong' || parts[1] === 'coup') &&
-    ['local', 'ai', 'online'].includes(parts[2])
+    ['local', 'ai', 'online', 'review'].includes(parts[2])
   ) {
     return {
       name: 'play',

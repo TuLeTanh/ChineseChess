@@ -4098,3 +4098,37 @@ body.mode-effects .board-stage {
     gap: 8px;
   }
 }
+
+/* --- Online Rematch Matrix Banner & Status --- */
+.rematch-banner {
+  margin: 10px 0 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(217, 164, 65, 0.14);
+  border: 1px solid rgba(217, 164, 65, 0.42);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.rematch-banner[hidden] {
+  display: none !important;
+}
+.rematch-banner-btns {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rematch-status {
+  margin: 6px 0 4px;
+  font-size: 13px;
+  color: var(--accent-gold);
+  text-align: center;
+}
+.rematch-status[hidden] {
+  display: none !important;
+}

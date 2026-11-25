@@ -253,7 +253,32 @@ export class OnlineGameBridge {
 
     on('game.rematch.offered', () => {
       if (this.disposed) return;
+      this._setRematchUi('received');
       this.boardView.showToast('Đối thủ muốn tái đấu!');
+    });
+
+    on('game.rematch.canceled', () => {
+      if (this.disposed) return;
+      this._setRematchUi('idle');
+    });
+
+    on('game.rematch.declined', (msg) => {
+      if (this.disposed) return;
+      if (msg && msg.by === this.mySide) {
+        this._setRematchUi('idle');
+      } else {
+        this._setRematchUi('declined');
+      }
+    });
+
+    on('game.rematch.expired', () => {
+      if (this.disposed) return;
+      this._setRematchUi('expired');
+    });
+
+    on('opponent.left', () => {
+      if (this.disposed) return;
+      this._setRematchUi('opponent_left');
     });
 
     on('game.over', (msg) => {
@@ -339,6 +364,21 @@ export class OnlineGameBridge {
     this._syncPlayerCards();
     this._renderClocks();
 
+    if (this.over && state.result) {
+      const reasonText = formatOnlineReasonVi(state.result.reason, state.result.winner, this.mySide);
+      const kind = !state.result.winner ? 'draw' : state.result.winner === this.mySide ? 'win' : 'lose';
+      this._showOnlineGameOverModal(reasonText, kind, state.ply || board.history.length);
+      if (state.opponentLeft) {
+        this._setRematchUi('opponent_left');
+      } else if (state.rematchOfferBy === this.mySide) {
+        this._setRematchUi('waiting');
+      } else if (state.rematchOfferBy) {
+        this._setRematchUi('received');
+      } else if (state.rematchDeclined) {
+        this._setRematchUi('declined');
+      }
+    }
+
     if (this.ctx.testMode && typeof window !== 'undefined') {
       window.__onlineState = {
         gameId: this.gameId,
@@ -395,16 +435,26 @@ export class OnlineGameBridge {
         <div class="modal-card modal-gameover is-kind-${kind}">
           <h3 id="online-go-title"></h3>
           <p class="gameover-stats">Số nước: ${plies}</p>
+          <div class="rematch-banner" hidden>
+            <span>Đối thủ muốn tái đấu</span>
+            <div class="rematch-banner-btns">
+              <button type="button" class="pill-btn pill-btn-gold" data-rematch="accept">Đồng ý</button>
+              <button type="button" class="pill-btn" data-rematch="decline">Từ chối</button>
+            </div>
+          </div>
+          <p class="rematch-status" aria-live="polite" hidden></p>
           <div class="modal-actions">
             <button type="button" class="pill-btn modal-online-lobby">Về sảnh</button>
             <button type="button" class="pill-btn modal-online-export">Xuất</button>
             <button type="button" class="pill-btn pill-btn-gold modal-online-rematch">Tái đấu</button>
+            <button type="button" class="pill-btn" data-rematch="cancel" hidden>Hủy lời mời</button>
           </div>
         </div>
       </div>
     `;
     modalRoot.querySelector('#online-go-title').textContent = reasonText;
     modalRoot.querySelector('.modal-online-lobby').addEventListener('click', () => {
+      this.conn?.send('game.leave', { gameId: this.gameId });
       this.sidePanel.closeModal();
       this.ctx.router.navigate('/');
     });
@@ -419,11 +469,75 @@ export class OnlineGameBridge {
       }
     });
     const rematchBtn = modalRoot.querySelector('.modal-online-rematch');
+    const cancelBtn = modalRoot.querySelector('[data-rematch="cancel"]');
+    const acceptBtn = modalRoot.querySelector('[data-rematch="accept"]');
+    const declineBtn = modalRoot.querySelector('[data-rematch="decline"]');
+
     rematchBtn.addEventListener('click', () => {
-      rematchBtn.disabled = true;
-      rematchBtn.textContent = 'Đang chờ đối thủ…';
-      this.conn?.send('game.rematch', {});
+      if (rematchBtn.disabled) return;
+      this._setRematchUi('waiting');
+      this.conn?.send('game.rematch', { gameId: this.gameId });
     });
+    cancelBtn.addEventListener('click', () => {
+      this._setRematchUi('idle');
+      this.conn?.send('game.rematch.cancel', { gameId: this.gameId });
+    });
+    acceptBtn.addEventListener('click', () => {
+      acceptBtn.disabled = true;
+      declineBtn.disabled = true;
+      this.conn?.send('game.rematch', { gameId: this.gameId });
+    });
+    declineBtn.addEventListener('click', () => {
+      this._setRematchUi('idle');
+      this.conn?.send('game.rematch.decline', { gameId: this.gameId });
+    });
+  }
+
+  _setRematchUi(state) {
+    const modalRoot = this.ctx.modalRoot;
+    if (!modalRoot || modalRoot.hidden) return;
+    const banner = modalRoot.querySelector('.rematch-banner');
+    const status = modalRoot.querySelector('.rematch-status');
+    const rematchBtn = modalRoot.querySelector('.modal-online-rematch');
+    const cancelBtn = modalRoot.querySelector('[data-rematch="cancel"]');
+    if (!banner || !status || !rematchBtn || !cancelBtn) return;
+
+    banner.hidden = state !== 'received';
+    cancelBtn.hidden = state !== 'waiting';
+
+    if (state === 'idle') {
+      status.hidden = true;
+      status.textContent = '';
+      rematchBtn.hidden = false;
+      rematchBtn.disabled = false;
+      rematchBtn.textContent = 'Tái đấu';
+    } else if (state === 'waiting') {
+      status.hidden = false;
+      status.textContent = 'Đã gửi lời mời tái đấu, đang chờ…';
+      rematchBtn.disabled = true;
+      rematchBtn.textContent = 'Đang chờ…';
+    } else if (state === 'received') {
+      status.hidden = true;
+      status.textContent = '';
+      rematchBtn.hidden = false;
+      rematchBtn.disabled = false;
+      rematchBtn.textContent = 'Tái đấu';
+    } else if (state === 'declined') {
+      status.hidden = false;
+      status.textContent = 'Đối thủ đã từ chối tái đấu.';
+      rematchBtn.disabled = true;
+      rematchBtn.textContent = 'Tái đấu';
+    } else if (state === 'expired') {
+      status.hidden = false;
+      status.textContent = 'Lời mời tái đấu đã hết hạn.';
+      rematchBtn.disabled = false;
+      rematchBtn.textContent = 'Tái đấu';
+    } else if (state === 'opponent_left') {
+      status.hidden = false;
+      status.textContent = 'Đối thủ đã rời phòng.';
+      rematchBtn.disabled = true;
+      rematchBtn.textContent = 'Tái đấu';
+    }
   }
 
   dispose() {
@@ -436,6 +550,9 @@ export class OnlineGameBridge {
     for (const off of this._unsubs) off();
     this._unsubs = [];
     if (this.conn) {
+      if (this.over && this.gameId) {
+        this.conn.send('game.leave', { gameId: this.gameId });
+      }
       this.conn.close();
       this.conn = null;
     }

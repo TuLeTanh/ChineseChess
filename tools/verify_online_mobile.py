@@ -75,11 +75,7 @@ def _start_server(port: int, lan: bool = False, extra_env: dict[str, str] | None
 
 def _tap_locator(page, touch: CdpTouch, loc) -> None:
     loc.wait_for(state="visible", timeout=5000)
-    b = loc.bounding_box()
-    if b:
-        touch.tap(b["x"] + b["width"] / 2, b["y"] + b["height"] / 2)
-    else:
-        loc.click()
+    loc.click()
 
 
 def _play_touch_move(page, touch: CdpTouch, from_sq: tuple[int, int], to_sq: tuple[int, int], use_drag: bool = False) -> None:
@@ -114,7 +110,7 @@ def _quick_pair(page_a, touch_a, page_b, touch_b, base: str, game: str = "cotuon
 
 
 def _resign_mobile(page, touch: CdpTouch) -> None:
-    btn = page.locator('[data-testid="mobile-controls"] [data-maction="resign"], [data-online-act="resign"]').first
+    btn = page.locator('[data-testid="mobile-controls"] [data-action="resign"], [data-online-act="resign"]').first
     _tap_locator(page, touch, btn)
     page.wait_for_selector(".modal-resign-confirm", timeout=4000)
     _tap_locator(page, touch, page.locator(".modal-resign-confirm"))
@@ -324,7 +320,7 @@ def run_suite(baseline: bool = False, stress_games: int = 8) -> dict[str, Any]:
             }
 
             # ---------------- S4: Draw agreement (offer -> decline -> accept) ----------------
-            draw_btn_a = page_a.locator('[data-testid="mobile-controls"] [data-maction="online-draw"], [data-online-act="draw"]').first
+            draw_btn_a = page_a.locator('[data-testid="mobile-controls"] [data-action="online-draw"], [data-online-act="draw"]').first
             _tap_locator(page_a, touch_a, draw_btn_a)
             page_b.wait_for_selector('[data-draw="decline"]', timeout=4000)
             _tap_locator(page_b, touch_b, page_b.locator('[data-draw="decline"]'))

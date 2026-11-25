@@ -108,7 +108,10 @@ export function createOnlineServer(opts = {}) {
   const maxRooms = opts.maxRooms ?? Number(process.env.MAX_ROOMS || 200);
   const trustProxy = Boolean(opts.trustProxy ?? process.env.TRUST_PROXY === '1');
   const roomTtlMs = opts.roomTtlMs ?? Number(process.env.ROOM_TTL_MS || 600_000);
-  const reconnectGraceMs = opts.reconnectGraceMs ?? Number(process.env.RECONNECT_GRACE_MS || 90_000);
+  const reconnectGraceMs =
+    opts.reconnectGraceMs ?? Number(process.env.RECONNECT_GRACE_MS || process.env.ABANDON_GRACE_MS || 90_000);
+  const rematchTtlMs = opts.rematchTtlMs ?? Number(process.env.REMATCH_TTL_MS || 60_000);
+  const drawThrottlePlies = opts.drawThrottlePlies ?? Number(process.env.DRAW_THROTTLE_PLIES ?? 10);
   const queueTimeoutMs = opts.queueTimeoutMs ?? Number(process.env.QUEUE_TIMEOUT_MS || 120_000);
   const maxNewConnsPerSec = opts.maxNewConnsPerSec ?? Number(process.env.MAX_NEW_CONNS_PER_SEC || 3);
   const testTcOverride = opts.testTc ?? parseTestTc(process.env.TEST_TC);
@@ -278,7 +281,41 @@ export function createOnlineServer(opts = {}) {
       opponentConnected: game.players[opponentSide].connected,
       over: game.over,
       result: game.result || null,
+      rematchOfferBy: game.rematchOfferBy || null,
+      opponentLeft: Boolean(game.opponentLeft),
+      rematchDeclined: Boolean(game.rematchDeclined),
     };
+  }
+
+  function clearRematchTimer(game) {
+    if (game && game.rematchTimer) {
+      clearTimeout(game.rematchTimer);
+      game.rematchTimer = null;
+    }
+  }
+
+  function notifyFinishedGameLeave(client) {
+    if (!client || !client.guestId) return;
+    const gameId = guestToGame.get(client.guestId);
+    const game = gameId ? games.get(gameId) : null;
+    if (!game || !game.over) return;
+    if (guestToGame.get(client.guestId) === game.id) {
+      guestToGame.delete(client.guestId);
+    }
+    if (game.rematchStarted || game.opponentLeft) return;
+    const mySide =
+      game.players.red.guestId === client.guestId
+        ? RED
+        : game.players.black.guestId === client.guestId
+          ? BLACK
+          : null;
+    if (!mySide) return;
+    const oppSide = oppositeSide(mySide);
+    game.opponentLeft = true;
+    clearRematchTimer(game);
+    game.rematchOfferBy = null;
+    game.rematchRequested = { red: false, black: false };
+    send(guestToClient.get(game.players[oppSide].guestId), 'opponent.left', { gameId: game.id });
   }
 
   function startGame({ variant, tc, redPlayer, blackPlayer }) {
@@ -309,6 +346,11 @@ export function createOnlineServer(opts = {}) {
       drawOfferBy: null,
       lastDrawOfferPly: { red: -99, black: -99 },
       rematchRequested: { red: false, black: false },
+      rematchOfferBy: null,
+      rematchTimer: null,
+      rematchDeclined: false,
+      rematchStarted: false,
+      opponentLeft: false,
       over: false,
       result: null,
       cleanupTimer: null,
@@ -362,6 +404,7 @@ export function createOnlineServer(opts = {}) {
 
     // Keep finished game in map briefly for rematch requests, then clean up
     game.cleanupTimer = setTimeout(() => {
+      clearRematchTimer(game);
       if (guestToGame.get(game.players.red.guestId) === game.id) {
         guestToGame.delete(game.players.red.guestId);
       }
@@ -519,7 +562,7 @@ export function createOnlineServer(opts = {}) {
         onlineCount: clients.size,
       });
 
-      // Resync active game if reconnecting
+      // Resync active or recently-finished game if reconnecting
       const activeGameId = guestToGame.get(client.guestId);
       const game = activeGameId ? games.get(activeGameId) : null;
       if (game && !game.over) {
@@ -535,6 +578,15 @@ export function createOnlineServer(opts = {}) {
         send(guestToClient.get(game.players[oppSide].guestId), 'opponent.reconnected', {
           gameId: game.id,
         });
+      } else if (game && game.over && !game.rematchStarted) {
+        const mySide = game.players.red.guestId === client.guestId ? RED : BLACK;
+        const pInfo = game.players[mySide];
+        pInfo.connected = true;
+        if (pInfo.graceTimer) {
+          clearTimeout(pInfo.graceTimer);
+          pInfo.graceTimer = null;
+        }
+        send(client, 'game.state', buildPublicGameState(game, mySide));
       }
       return;
     }
@@ -553,6 +605,7 @@ export function createOnlineServer(opts = {}) {
       }
       removeFromAllQueues(client);
       leaveOwnedRoom(client);
+      notifyFinishedGameLeave(client);
 
       const key = `${msg.variant}:${msg.tc}`;
       if (!queues.has(key)) queues.set(key, []);
@@ -609,6 +662,7 @@ export function createOnlineServer(opts = {}) {
       }
       removeFromAllQueues(client);
       leaveOwnedRoom(client);
+      notifyFinishedGameLeave(client);
 
       const code = randomRoomCode(rooms);
       const hostSide = msg.side === RED || msg.side === BLACK ? msg.side : 'random';
@@ -702,7 +756,7 @@ export function createOnlineServer(opts = {}) {
       if (!game || game.over) return;
       const mySide = game.players.red.guestId === client.guestId ? RED : BLACK;
       const ply = game.board.history.length;
-      if (ply - game.lastDrawOfferPly[mySide] < 10) {
+      if (drawThrottlePlies > 0 && ply - game.lastDrawOfferPly[mySide] < drawThrottlePlies) {
         return send(client, 'error', { code: 'DRAW_COOLDOWN', message: 'Vui lòng chờ thêm nước đi trước khi xin hòa lại.' });
       }
       game.lastDrawOfferPly[mySide] = ply;
@@ -731,17 +785,32 @@ export function createOnlineServer(opts = {}) {
       return;
     }
 
+    if (msg.type === 'game.leave') {
+      notifyFinishedGameLeave(client);
+      return;
+    }
+
     if (msg.type === 'game.rematch') {
       const gameId = guestToGame.get(client.guestId);
       const game = gameId ? games.get(gameId) : null;
-      if (!game || !game.over) return;
+      if (!game || !game.over || game.rematchStarted) return;
+      if (msg.gameId && msg.gameId !== game.id) {
+        return send(client, 'error', { code: 'STALE_GAME', message: 'Ván đấu đã kết thúc.' });
+      }
+      if (game.opponentLeft) {
+        return send(client, 'opponent.left', { gameId: game.id });
+      }
       const mySide = game.players.red.guestId === client.guestId ? RED : BLACK;
-      game.rematchRequested[mySide] = true;
       const oppSide = oppositeSide(mySide);
+      if (game.rematchRequested[mySide]) return; // double-tap idempotency guard
+      game.rematchRequested[mySide] = true;
+
       if (game.rematchRequested.red && game.rematchRequested.black) {
+        game.rematchStarted = true;
+        clearRematchTimer(game);
         if (game.cleanupTimer) clearTimeout(game.cleanupTimer);
         games.delete(game.id);
-        // Swap colors for rematch
+        // Swap colors for rematch, preserving variant and tc
         startGame({
           variant: game.variant,
           tc: game.tc,
@@ -749,10 +818,51 @@ export function createOnlineServer(opts = {}) {
           blackPlayer: { guestId: game.players.red.guestId, nickname: game.players.red.nickname },
         });
       } else {
+        game.rematchOfferBy = mySide;
+        game.rematchDeclined = false;
+        clearRematchTimer(game);
+        game.rematchTimer = setTimeout(() => {
+          if (game.rematchStarted || !game.rematchOfferBy) return;
+          game.rematchOfferBy = null;
+          game.rematchRequested = { red: false, black: false };
+          send(guestToClient.get(game.players.red.guestId), 'game.rematch.expired', { gameId: game.id });
+          send(guestToClient.get(game.players.black.guestId), 'game.rematch.expired', { gameId: game.id });
+        }, rematchTtlMs);
         send(guestToClient.get(game.players[oppSide].guestId), 'game.rematch.offered', {
           gameId: game.id,
+          by: mySide,
         });
       }
+      return;
+    }
+
+    if (msg.type === 'game.rematch.cancel') {
+      const gameId = guestToGame.get(client.guestId);
+      const game = gameId ? games.get(gameId) : null;
+      if (!game || !game.over || game.rematchStarted) return;
+      const mySide = game.players.red.guestId === client.guestId ? RED : BLACK;
+      if (game.rematchOfferBy !== mySide) return;
+      clearRematchTimer(game);
+      game.rematchOfferBy = null;
+      game.rematchRequested[mySide] = false;
+      send(guestToClient.get(game.players.red.guestId), 'game.rematch.canceled', { gameId: game.id, by: mySide });
+      send(guestToClient.get(game.players.black.guestId), 'game.rematch.canceled', { gameId: game.id, by: mySide });
+      return;
+    }
+
+    if (msg.type === 'game.rematch.decline') {
+      const gameId = guestToGame.get(client.guestId);
+      const game = gameId ? games.get(gameId) : null;
+      if (!game || !game.over || game.rematchStarted) return;
+      const mySide = game.players.red.guestId === client.guestId ? RED : BLACK;
+      if (!game.rematchOfferBy || game.rematchOfferBy === mySide) return;
+      const offerer = game.rematchOfferBy;
+      clearRematchTimer(game);
+      game.rematchOfferBy = null;
+      game.rematchRequested = { red: false, black: false };
+      game.rematchDeclined = true;
+      send(guestToClient.get(game.players[offerer].guestId), 'game.rematch.declined', { gameId: game.id, by: mySide });
+      send(client, 'game.rematch.declined', { gameId: game.id, by: mySide });
       return;
     }
 
@@ -774,12 +884,24 @@ export function createOnlineServer(opts = {}) {
 
     const gameId = guestToGame.get(client.guestId);
     const game = gameId ? games.get(gameId) : null;
-    if (!game || game.over) return;
+    if (!game) return;
 
     const mySide = game.players.red.guestId === client.guestId ? RED : BLACK;
     const oppSide = oppositeSide(mySide);
     const pInfo = game.players[mySide];
     pInfo.connected = false;
+
+    if (game.over) {
+      // Allow a brief window for reload (S5i) before marking opponent left
+      if (pInfo.graceTimer) clearTimeout(pInfo.graceTimer);
+      pInfo.graceTimer = setTimeout(() => {
+        if (!pInfo.connected && !game.rematchStarted && !game.opponentLeft) {
+          notifyFinishedGameLeave(client);
+        }
+      }, 2500);
+      return;
+    }
+
     const grace = game.tc === 'none' ? Math.max(reconnectGraceMs, 180_000) : reconnectGraceMs;
 
     send(guestToClient.get(game.players[oppSide].guestId), 'opponent.disconnected', {

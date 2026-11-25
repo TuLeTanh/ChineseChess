@@ -26,11 +26,19 @@ Mọi gói tin từ server đều kèm phiên bản `v: 1` và số thứ tự �
 
 ## 4. Trong ván đấu
 
-- `game.start` / `game.state`: `{ gameId, variant, tc, mySide, sideToMove, fen, pool, ply, moves, clocks, players, opponentConnected, over, result }`.
+- `game.start` / `game.state`: `{ gameId, variant, tc, mySide, sideToMove, fen, pool, ply, moves, clocks, players, opponentConnected, over, result, rematchOfferBy, opponentLeft, rematchDeclined }`.
   - **Cờ Úp**: server giữ `_secret` hoàn toàn phía server; `fen` là public FEN (`X`/`x` cho quân úp) và `pool` là số quân úp còn lại. Không bao giờ gửi thông tin quân chưa lật qua mạng.
-- `game.move` (C→S): `{ gameId, move }` (ICCS 4 ký tự, ví dụ `"h2e2"`).
+  - Khi người chơi tải lại trang trong lúc lời mời tái đấu đang chờ, `hello` sẽ đồng bộ lại `game.state` kèm `rematchOfferBy` / `opponentLeft` / `rematchDeclined`.
+- `game.move` (C→S): `{ gameId, move }` (ICCS 4 ký tự, ví dụ `"h2e2"`). Gửi nước đi với `gameId` cũ sau tái đấu sẽ bị từ chối.
 - `game.move` (S→C): `{ gameId, ply, move, side, fen, pool, reveal, capturedReveal, suffix, gaveCheck, isCheckmate, sideToMove, clocks }`.
-- `game.resign`, `game.draw.offer` (tối đa 1 lần mỗi 10 ply, tự hủy khi có nước mới), `game.draw.respond` (`{ accept }`), `game.rematch` (tái đấu đổi màu).
+- `game.resign`, `game.draw.offer` (tối đa 1 lần mỗi 10 ply, tự hủy khi có nước mới), `game.draw.respond` (`{ accept }`).
+- **Tái đấu (Rematch)**:
+  - `game.rematch` (C→S): `{ gameId }` — gửi lời mời hoặc chấp nhận tái đấu (idempotent nếu bấm đúp; bấm đồng thời chỉ tạo đúng 1 ván mới, đổi màu quân, giữ nguyên biến thể và `tc`).
+  - `game.rematch.offered` (S→C): `{ gameId, by }` — thông báo đối thủ muốn tái đấu (TTL mặc định 60 giây, tùy chỉnh qua `REMATCH_TTL_MS`).
+  - `game.rematch.cancel` (C→S) → `game.rematch.canceled` (S→C) — người mời hủy lời mời.
+  - `game.rematch.decline` (C→S) → `game.rematch.declined` (S→C) — đối thủ từ chối lời mời.
+  - `game.rematch.expired` (S→C) — lời mời hết hạn sau TTL.
+  - `game.leave` (C→S) → `opponent.left` (S→C) — thông báo cho đối thủ khi một bên rời ván đã kết thúc.
 - `game.over`: `{ gameId, winner: "red" | "black" | null, reason, clocks, ply }`.
   - `reason`: `checkmate | stalemate | timeout | resign | abandon | draw_agreement | draw_repetition | draw_no_capture`.
 

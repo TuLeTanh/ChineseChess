@@ -13,6 +13,7 @@ import {
 } from '../storage/formats.js';
 import { variantToRouteGame } from '../storage/gameRecord.js';
 import { AI_LEVELS } from '../ai/levels.js';
+import { analysisKey } from '../analysis/math.js';
 
 export function formatRelativeDateVi(iso) {
   if (!iso) return '';
@@ -162,6 +163,10 @@ export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = 
           <button type="button" class="pill-btn" data-exp="fen">📋 Sao chép FEN thế cờ hiện tại</button>
           <button type="button" class="pill-btn" data-exp="link">🔗 Sao chép liên kết ván</button>
           <button type="button" class="pill-btn" data-exp="json">⬇ Tải file .xqgame.json</button>
+          <label class="export-an-opt" hidden>
+            <input type="checkbox" data-exp-include-an>
+            <span>Kèm phân tích đã lưu (chỉ áp dụng cho .xqgame.json)</span>
+          </label>
           <button type="button" class="pill-btn" data-exp="pgn">⬇ Tải văn bản PGN (.pgn)</button>
         </div>
         <div class="set-msg export-status" aria-live="polite" style="margin-top:10px"></div>
@@ -212,8 +217,22 @@ export function openExportModal(ctx, { record, currentFen, allowSaveToLibrary = 
     if (ok) setStatus(`Đã sao chép liên kết (${enc.payload.length} ký tự) ✓`);
   });
 
+  let cachedAnalysis = null;
+  const anOptWrap = modalRoot.querySelector('.export-an-opt');
+  const anOptChk = modalRoot.querySelector('[data-exp-include-an]');
+  if (ctx.gameStore && record && record.variant === 'xiangqi' && Array.isArray(record.moves)) {
+    const aKey = analysisKey(record.start?.fen || '', record.moves.map((m) => m.m));
+    ctx.gameStore.getAnalysis(aKey).then((an) => {
+      if (an && anOptWrap && anOptWrap.isConnected) {
+        cachedAnalysis = an;
+        anOptWrap.hidden = false;
+      }
+    });
+  }
+
   modalRoot.querySelector('[data-exp="json"]').addEventListener('click', () => {
-    triggerDownload(makeExportFilename(record, 'xqgame.json'), toJson(record), 'application/json;charset=utf-8');
+    const payload = cachedAnalysis && anOptChk?.checked ? { ...record, analysis: cachedAnalysis } : record;
+    triggerDownload(makeExportFilename(record, 'xqgame.json'), toJson(payload), 'application/json;charset=utf-8');
     setStatus('Đã tải xuống file .xqgame.json ✓');
   });
 

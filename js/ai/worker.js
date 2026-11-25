@@ -21,11 +21,10 @@ self.onmessage = (ev) => {
   }
 
   if (msg.type === 'analyze_pos') {
-    const { id, fen, depth = 4, timeBudgetMs = 1200 } = msg;
+    const { id, fen, depth = 4, timeBudgetMs = 600 } = msg;
     const res = searchBestMove(fen, {
-      depth,
-      timeBudgetMs,
-      noiseCp: 0,
+      maxDepth: depth,
+      timeMs: timeBudgetMs,
       shouldStop: () => cancelledId === id,
     });
     if (cancelledId !== id) {

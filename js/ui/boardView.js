@@ -145,6 +145,7 @@ export class BoardView {
     this.hovered = null;
     /** @type {{ from: import('../model/moves.js').Pos, to: import('../model/moves.js').Pos } | null} */
     this.hintArrow = null;
+    this.analysisArrows = [];
     this._hintTimer = null;
     this.selectionLift = 0;
     this.cancelSelectLift = null;
@@ -483,6 +484,12 @@ export class BoardView {
       this.hintArrow = null;
       this._renderOverlays();
     }
+  }
+
+  /** Set analysis arrows: array of { from, to, color, opacity }. */
+  setAnalysisArrows(arrows) {
+    this.analysisArrows = Array.isArray(arrows) ? arrows : [];
+    this._renderOverlays();
   }
 
   /** Show a non-blocking toast at the top centre of the board for 1.4 s. @param {string} text */
@@ -1600,51 +1607,59 @@ export class BoardView {
       }
     }
 
-    // 5. Soft blue hint arrow (when active)
-    if (this.hintArrow) {
-      const fp = this.logicalToBoard(this.hintArrow.from);
-      const tp = this.logicalToBoard(this.hintArrow.to);
+    // 5. Soft blue hint arrow & analysis arrows (when active)
+    const drawArrow = (from, to, color, opacity, cls) => {
+      const fp = this.logicalToBoard(from);
+      const tp = this.logicalToBoard(to);
       const dx = tp.x - fp.x;
       const dy = tp.y - fp.y;
       const len = Math.hypot(dx, dy);
-      if (len > 1) {
-        const ux = dx / len;
-        const uy = dy / len;
-        const startX = fp.x + ux * 22;
-        const startY = fp.y + uy * 22;
-        const endX = tp.x - ux * 28;
-        const endY = tp.y - uy * 28;
-        const tipX = tp.x - ux * 10;
-        const tipY = tp.y - uy * 10;
-        const px = -uy;
-        const py = ux;
-        const headBaseX = tipX - ux * 24;
-        const headBaseY = tipY - uy * 24;
-        const p1x = headBaseX + px * 15;
-        const p1y = headBaseY + py * 15;
-        const p2x = headBaseX - px * 15;
-        const p2y = headBaseY - py * 15;
+      if (len <= 1) return;
+      const ux = dx / len;
+      const uy = dy / len;
+      const startX = fp.x + ux * 22;
+      const startY = fp.y + uy * 22;
+      const endX = tp.x - ux * 28;
+      const endY = tp.y - uy * 28;
+      const tipX = tp.x - ux * 10;
+      const tipY = tp.y - uy * 10;
+      const px = -uy;
+      const py = ux;
+      const headBaseX = tipX - ux * 24;
+      const headBaseY = tipY - uy * 24;
+      const p1x = headBaseX + px * 15;
+      const p1y = headBaseY + py * 15;
+      const p2x = headBaseX - px * 15;
+      const p2y = headBaseY - py * 15;
 
-        const g = svgEl('g', { class: 'hint-arrow', opacity: 0.88 });
-        g.appendChild(
-          svgEl('line', {
-            x1: startX.toFixed(1),
-            y1: startY.toFixed(1),
-            x2: endX.toFixed(1),
-            y2: endY.toFixed(1),
-            stroke: '#5BA4F5',
-            'stroke-width': 11,
-            'stroke-linecap': 'round',
-          })
-        );
-        g.appendChild(
-          svgEl('polygon', {
-            points: `${tipX.toFixed(1)},${tipY.toFixed(1)} ${p1x.toFixed(1)},${p1y.toFixed(1)} ${p2x.toFixed(1)},${p2y.toFixed(1)}`,
-            fill: '#5BA4F5',
-          })
-        );
-        this.layerSelection.appendChild(g);
+      const g = svgEl('g', { class: cls, opacity });
+      g.appendChild(
+        svgEl('line', {
+          x1: startX.toFixed(1),
+          y1: startY.toFixed(1),
+          x2: endX.toFixed(1),
+          y2: endY.toFixed(1),
+          stroke: color,
+          'stroke-width': 11,
+          'stroke-linecap': 'round',
+        })
+      );
+      g.appendChild(
+        svgEl('polygon', {
+          points: `${tipX.toFixed(1)},${tipY.toFixed(1)} ${p1x.toFixed(1)},${p1y.toFixed(1)} ${p2x.toFixed(1)},${p2y.toFixed(1)}`,
+          fill: color,
+        })
+      );
+      this.layerSelection.appendChild(g);
+    };
+
+    if (this.analysisArrows && this.analysisArrows.length > 0) {
+      for (const a of this.analysisArrows) {
+        drawArrow(a.from, a.to, a.color || '#38BDF8', a.opacity ?? 0.85, 'analysis-arrow');
       }
+    }
+    if (this.hintArrow) {
+      drawArrow(this.hintArrow.from, this.hintArrow.to, '#5BA4F5', 0.88, 'hint-arrow');
     }
   }
 }

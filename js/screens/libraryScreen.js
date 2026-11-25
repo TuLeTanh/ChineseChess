@@ -9,6 +9,7 @@ import { buildPieceSymbolsDefs, pieceSymbolId, pieceBackSymbolId } from '../rend
 import { Board } from '../model/board.js';
 import { JieqiBoard, LETTER_TO_KIND } from '../jieqi/rules.js';
 import { variantToRouteGame } from '../storage/gameRecord.js';
+import { analysisKey } from '../analysis/math.js';
 import {
   formatRelativeDateVi,
   formatResultVi,
@@ -182,6 +183,8 @@ export function createLibraryScreen(ctx) {
           cursor,
         });
         if (destroyed) return;
+        const allAnalyses = ctx.gameStore.listAnalyses ? await ctx.gameStore.listAnalyses() : [];
+        const analysisByKey = new Map(allAnalyses.map((a) => [a.key, a]));
         currentItems = res.items;
         countSub.textContent = `${res.total} ván đã lưu`;
 
@@ -239,6 +242,19 @@ export function createLibraryScreen(ctx) {
 
           body.append(topLine, meta);
 
+          if (rec.variant === 'xiangqi') {
+            const aKey = analysisKey(rec.start?.fen || '', (rec.moves || []).map((m) => m.m));
+            const an = analysisByKey.get(aKey);
+            if (an && an.summary && (an.summary.redAccuracy !== null || an.summary.blackAccuracy !== null)) {
+              const accEl = document.createElement('div');
+              accEl.className = 'lib-acc-badge';
+              const rAcc = an.summary.redAccuracy !== null ? `${Math.round(an.summary.redAccuracy)}%` : '—';
+              const bAcc = an.summary.blackAccuracy !== null ? `${Math.round(an.summary.blackAccuracy)}%` : '—';
+              accEl.textContent = `Độ chính xác: Đỏ ${rAcc} · Đen ${bAcc}`;
+              body.appendChild(accEl);
+            }
+          }
+
           if (rec.note) {
             const noteEl = document.createElement('div');
             noteEl.className = 'lib-item-note';
@@ -266,6 +282,13 @@ export function createLibraryScreen(ctx) {
           };
 
           actions.appendChild(mkBtn('Xem lại', 'is-selected', openReview));
+          if (rec.variant === 'xiangqi') {
+            actions.appendChild(
+              mkBtn('Phân tích', '', () => {
+                ctx.router.navigate('/play/cotuong/review', { id: rec.id, analyze: '1' });
+              })
+            );
+          }
           if (rec.result === 'unfinished') {
             actions.appendChild(
               mkBtn('Chơi tiếp', '', () => {

@@ -237,9 +237,11 @@ export function runGameAnalysis(opts) {
               ? { mate: res.score > 0 ? 1 : -1 }
               : { cp: res.score }
             : { cp: 0 };
-        const bestMoveIccs = res.move
-          ? `${FILES[res.move.from.x]}${9 - res.move.from.y}${FILES[res.move.to.x]}${9 - res.move.to.y}`
-          : null;
+        const bestMoveIccs = typeof res.move === 'string'
+          ? res.move
+          : res.move && res.move.from
+            ? `${FILES[res.move.from.x]}${9 - res.move.from.y}${FILES[res.move.to.x]}${9 - res.move.to.y}`
+            : null;
         state.positions.push(
           normalizePosEvent(
             {

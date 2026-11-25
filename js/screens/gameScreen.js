@@ -412,6 +412,24 @@ export function createGameScreen(ctx) {
             allowSaveToLibrary: true,
           });
         },
+        onAnalyzeGame:
+          variant.id !== 'coup'
+            ? async () => {
+                if (!controller || !controller.isGameOver()) return; // Integrity rule
+                const rec = buildCurrentRecord(
+                  controller.resigned ? (controller.playerSide === RED ? 'black' : 'red') : 'draw',
+                  controller.resigned ? 'resign' : null,
+                  'manual'
+                );
+                if (ctx.gameStore) {
+                  const saved = await saveRecordWithPrunePrompt(ctx, rec);
+                  if (saved?.ok && saved.record?.id) {
+                    ctx.router.navigate('/play/cotuong/review', { id: saved.record.id, analyze: '1' });
+                    return;
+                  }
+                }
+              }
+            : null,
         onReviewGameOver: () => {
           controller.cancelEndFx();
           controller.viewPly = controller.board.history.length;

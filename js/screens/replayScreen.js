@@ -20,6 +20,8 @@ import { leakTracker } from '../app/router.js';
 import { LayoutManager } from '../ui/layoutManager.js';
 import { MoveStrip } from '../ui/moveStrip.js';
 import { BottomSheet } from '../ui/bottomSheet.js';
+import { EvalBar } from '../ui/evalBar.js';
+import { AnalysisPanel } from '../ui/analysisView.js';
 
 const FILES = 'abcdefghi';
 
@@ -57,6 +59,8 @@ export function createReplayScreen(ctx) {
   let layoutManager = null;
   let moveStrip = null;
   let bottomSheet = null;
+  let evalBar = null;
+  let analysisPanel = null;
   let autoTimer = null;
   let onKeyDown = null;
   let unsubSettings = null;
@@ -180,6 +184,7 @@ export function createReplayScreen(ctx) {
         });
         sidePanel.setReviewState({ viewPly, hasNewMoves: false, autoPlaying: Boolean(autoTimer), skipScroll: isScrub });
         if (moveStrip) moveStrip.update(viewPly);
+        if (analysisPanel) analysisPanel.syncPly(viewPly);
         if (ctx.testMode && typeof window !== 'undefined') {
           window.__view = { ply: viewPly, total, fen: snap.fen };
         }
@@ -310,7 +315,54 @@ export function createReplayScreen(ctx) {
       const ctrlGrid = sidePanelEl.querySelector('.controls-grid');
       if (ctrlGrid) ctrlGrid.parentNode.insertBefore(archiveBar, ctrlGrid);
 
+      // Mount EvalBar + AnalysisPanel (Cờ Tướng full support; Cờ Úp displays unsupported notice)
+      evalBar = new EvalBar({ container: stage });
+      boardView.onFlipChange = (flipped) => {
+        container.classList.toggle('is-flipped', Boolean(flipped));
+        if (evalBar) evalBar.setFlipped(flipped);
+      };
+      if (sidePanel.analysisTabBtn) sidePanel.analysisTabBtn.hidden = false;
+      const anPane = sidePanelEl.querySelector('.sheet-pane[data-spane="analysis"]');
+      if (anPane) anPane.hidden = false;
+      sidePanelEl.classList.add('has-analysis');
+
+      const analysisHost = sidePanel.analysisPaneHost || sidePanelEl;
+      analysisPanel = new AnalysisPanel({
+        ctx,
+        hostEl: analysisHost,
+        evalBar,
+        boardView,
+        sidePanel,
+        startFen: record.start.fen,
+        moves: (record.moves || []).map((m) => m.m),
+        variant: record.variant,
+        onSelectPly: (ply, opts) => goToPly(ply, opts),
+        onTryMove: (ply, iccs) => {
+          if (isJieqi || !iccs || iccs.length !== 4) return;
+          const b = Board.fromFen(board.snapshotAt(ply).fen);
+          const from = { x: FILES.indexOf(iccs[0]), y: 9 - Number(iccs[1]) };
+          const to = { x: FILES.indexOf(iccs[2]), y: 9 - Number(iccs[3]) };
+          b.applyMove(from, to);
+          openContinueFromPositionModal(ctx, {
+            variant: 'xiangqi',
+            fen: b.toFen(),
+            pool: null,
+          });
+        },
+      });
+
       goToPly(board.history.length, { isScrub: true });
+
+      analysisPanel.loadCached().then((cached) => {
+        if (disposed || isJieqi) return;
+        if (!cached && route.query?.analyze === '1') {
+          if (route.query?.auto === '1') {
+            analysisPanel.start({ preset: route.query?.preset || 'fast', forceEngine: route.query?.engine });
+          } else {
+            analysisPanel.openSetupModal();
+          }
+        }
+      });
 
       const sheetEl = sidePanelEl.querySelector('[data-testid="bottom-sheet"]');
       if (sheetEl) {
@@ -388,6 +440,14 @@ export function createReplayScreen(ctx) {
       if (bottomSheet) {
         bottomSheet.dispose();
         bottomSheet = null;
+      }
+      if (analysisPanel) {
+        analysisPanel.dispose();
+        analysisPanel = null;
+      }
+      if (evalBar) {
+        evalBar.dispose();
+        evalBar = null;
       }
       if (boardView) {
         boardView.animator.clear();

@@ -244,3 +244,20 @@
   - `tools/verify_online_mobile.py`: **PASS** (S1..S10 + Rematch Matrix + LAN insecure context + 0 console errors).
   - `node --test`: **45/45 PASS** (including `tests/online/rematch.test.js`).
   - **Self-Eval Round 1**: **R1=5, R2=5, R3=5, R4=5, R5=5** (all >= 4).
+
+## Part B — Game Analysis with Pikafish & JS Fallback (`feat/analysis`)
+
+- **Engine layer**:
+  - Extended `tools/server.py` with `UCI_ShowWDL = true`, `wdl W D L` parsing, `POST /api/engine/analyze` (SSE `pos`/`done`, `409` busy guard, `ucinewgame` once, Hash 128 MB, `< 500 ms` stop).
+  - Built unified `js/analysis/analyzer.js` (Pikafish SSE presets `Nhanh` 150ms / `Chuẩn` 600ms / `Sâu` 2000ms `multipv=2` + automatic JS Web Worker fallback `depth 4/5/6`).
+- **Pure logic & persistence**:
+  - Created `js/analysis/math.js` (Red/mover perspective normalization, WDL + logistic `WIN_K=150`, Lichess-style `moveAccuracy`, 7-tier `classifyMove` incl. `only_move` & `missed_mate` & ply 1–2 grace, deterministic `analysisKey`).
+  - Bumped `js/storage/gameStore.js` IndexedDB to `v2` (`analysis` store, cap 100, v1->v2 migration preserving games, optional `.xqgame.json` checkbox).
+- **UI & Mobile**:
+  - Built `js/ui/evalBar.js` (18px vertical desktop / 10px horizontal mobile stack) and `js/ui/analysisView.js` (setup modal, live progress + cancel/"Chưa đầy đủ", SVG area graph with touch scrub, best-move lines + "Thử nước này", multi-color board arrows, accuracy rings + top-3 mistakes, move badges + "Chỉ hiện sai lầm" filter, 4th bottom-sheet tab "Phân tích", library accuracy badges).
+  - Strictly enforced B1 Integrity Rule (0 analysis elements in live games; Cờ Úp notice).
+- **Verification**:
+  - `node --test tests/analysis/analysis.test.js`: **5/5 PASS**.
+  - `tools/verify_engine.py`: **PASS** (WDL sum=1000, 10-ply `/api/engine/analyze` = 11 positions, 409 busy, 0 ms stop, 0 orphans).
+  - `tools/verify_analysis.py`: **PASS** (Pikafish blunder detection at ply 9, JS fallback, cancel/"Chưa đầy đủ", reload persistence + library badge, integrity rule, export checkbox, mobile `390x844` & `inapp_390x700`, 4× CPU scrub + 20 round trips, 0 console errors).
+  - **Self-Eval Round 1**: **R1=5, R2=5, R3=5, R4=5, R5=5** (all >= 4).

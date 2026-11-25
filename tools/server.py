@@ -768,6 +768,13 @@ class BridgeHandler(http.server.SimpleHTTPRequestHandler):
             sid = (qs.get("id") or ["0"])[0][:64]
             self._handle_sse(sid)
             return
+        if parsed.path == "/api/online/info":
+            self._send_json(200, {"ok": False, "onlineCount": 0, "activeGames": 0})
+            return
+        if parsed.path == "/favicon.ico" and not (ROOT / "favicon.ico").exists():
+            self.send_response(204)
+            self.end_headers()
+            return
         if parsed.path == "/assets/voice/manifest.json" and not (ROOT / "assets" / "voice" / "manifest.json").exists():
             self._send_json(200, {"empty": True, "files": {}})
             return

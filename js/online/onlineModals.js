@@ -14,8 +14,8 @@ const GAME_LABELS = {
 function createConnection(ctx) {
   const s = ctx.settingsStore.get();
   return new OnlineConnection({
-    nickname: s.online.nickname || 'Kỳ thủ',
-    serverUrl: s.online.serverUrl || '',
+    nickname: s.nickname || s.online?.nickname || 'Kỳ thủ',
+    serverUrl: s.online?.serverUrl || '',
   });
 }
 

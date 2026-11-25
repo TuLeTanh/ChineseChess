@@ -150,8 +150,8 @@ export class OnlineGameBridge {
     // Reloaded directly onto #/play/<game>/online -> reconnect and resync active game
     const s = this.ctx.settingsStore.get();
     this.conn = new OnlineConnection({
-      nickname: s.online.nickname || 'Kỳ thủ',
-      serverUrl: s.online.serverUrl || '',
+      nickname: s.nickname || s.online?.nickname || 'Kỳ thủ',
+      serverUrl: s.online?.serverUrl || '',
     });
     this._bindSocketEvents();
     this.reconnectOverlay.hidden = false;

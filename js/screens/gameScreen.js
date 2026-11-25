@@ -439,8 +439,8 @@ export function createGameScreen(ctx) {
         },
       });
 
-      const renderMobileControls = (info = {}) => {
-        if (!mobileControlsEl || !controller) return;
+      function renderMobileControls(info = {}) {
+        if (!mobileControlsEl || !controller || !sidePanel) return;
         const isRev = Boolean(info.isReview);
         const curMode = controller.mode;
         const undoDisallowed = controller.board.isJieqi && (curMode === 'ai' || curMode === 'online');

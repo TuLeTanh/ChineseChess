@@ -205,6 +205,14 @@ export class AnalysisPanel {
       </div>
 
       <div class="an-scroll-body">
+        <div class="an-stepper" data-testid="an-stepper" hidden>
+          <button type="button" class="rev-btn" data-an-step="start" title="Thế ban đầu (Home)" aria-label="Thế ban đầu">⏮</button>
+          <button type="button" class="rev-btn" data-an-step="prev" title="Nước trước (←)" aria-label="Nước trước">◀</button>
+          <span class="an-step-counter" data-testid="an-step-counter">0 / 0</span>
+          <button type="button" class="rev-btn" data-an-step="next" title="Nước sau (→)" aria-label="Nước sau">▶</button>
+          <button type="button" class="rev-btn" data-an-step="end" title="Nước cuối (End)" aria-label="Nước cuối">⏭</button>
+        </div>
+
         <div class="an-notice" hidden></div>
 
         <div class="an-run-row" data-testid="an-run-row">
@@ -250,6 +258,8 @@ export class AnalysisPanel {
     this.engineBadgeEl = this.root.querySelector('[data-testid="an-engine-badge"]');
     this.moreBtn = this.root.querySelector('[data-an="more"]');
     this.moreMenu = this.root.querySelector('.an-more-menu');
+    this.stepperEl = this.root.querySelector('[data-testid="an-stepper"]');
+    this.stepCounterEl = this.root.querySelector('[data-testid="an-step-counter"]');
     this.noticeEl = this.root.querySelector('.an-notice');
     this.progressWrap = this.root.querySelector('.an-progress-wrap');
     this.progressLabel = this.root.querySelector('.an-progress-label');
@@ -318,6 +328,18 @@ export class AnalysisPanel {
       this._applyMoveListFilter();
     });
 
+    if (this.stepperEl) {
+      this.stepperEl.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-an-step]');
+        if (!b || b.disabled) return;
+        const act = b.dataset.anStep;
+        if (act === 'start') this.onSelectPly(0);
+        else if (act === 'prev') this.onSelectPly(Math.max(0, this.viewPly - 1));
+        else if (act === 'next') this.onSelectPly(Math.min(this.moves.length, this.viewPly + 1));
+        else if (act === 'end') this.onSelectPly(this.moves.length);
+      });
+    }
+
     this._bindGraphScrub();
   }
 
@@ -357,6 +379,49 @@ export class AnalysisPanel {
     this.graphSvg.addEventListener('pointercancel', endScrub);
   }
 
+  /** Sync startFen, moves, viewPly from live GameController whenever getBoardState is wired. */
+  _syncFromBoardState() {
+    if (!this.getBoardState || this.disposed) return null;
+    const st = this.getBoardState();
+    const nextMoves = Array.isArray(st.moves) ? st.moves : [];
+    const nextGameKey = gameFingerprint(st.startFen, nextMoves);
+    const gameChanged = nextGameKey !== this.gameKey;
+    this.startFen = st.startFen;
+    this.moves = nextMoves;
+    this.viewPly = typeof st.viewPly === 'number' ? st.viewPly : nextMoves.length;
+    if (gameChanged) {
+      this.gameKey = nextGameKey;
+      this.key = analysisKey(this.startFen, this.moves);
+      if (this.result && this.result.gameKey !== this.gameKey) {
+        this.result = null;
+        this.focusedMistakePly = null;
+        if (this.graphWrap) this.graphWrap.hidden = true;
+        if (this.summaryCard) this.summaryCard.hidden = true;
+        if (this.qualityCard) this.qualityCard.hidden = true;
+        if (this.verdictCard) this.verdictCard.hidden = true;
+        if (this.bestCard) this.bestCard.hidden = true;
+        if (this.runBtn) this.runBtn.textContent = this.isLiveLocal ? 'Phân tích cả ván' : 'Phân tích';
+      }
+    }
+    this._syncStepper();
+    return st;
+  }
+
+  _syncStepper() {
+    if (!this.stepperEl || !this.stepCounterEl) return;
+    const total = this.moves.length;
+    this.stepperEl.hidden = total === 0;
+    this.stepCounterEl.textContent = `Nước ${this.viewPly} / ${total}`;
+    const setDis = (sel, dis) => {
+      const b = this.stepperEl.querySelector(sel);
+      if (b) b.disabled = dis;
+    };
+    setDis('[data-an-step="start"]', total === 0 || this.viewPly <= 0);
+    setDis('[data-an-step="prev"]', total === 0 || this.viewPly <= 0);
+    setDis('[data-an-step="next"]', total === 0 || this.viewPly >= total);
+    setDis('[data-an-step="end"]', total === 0 || this.viewPly >= total);
+  }
+
   /** Activate or deactivate panel (starts/stops live local analysis & eval bar). */
   setActive(active) {
     this.active = Boolean(active);
@@ -368,24 +433,38 @@ export class AnalysisPanel {
       }
       return;
     }
+    this._syncFromBoardState();
     if (this.evalBar) this.evalBar.setVisible(true);
     if (this.isLiveLocal) {
       this.refreshLiveLocalState();
     } else {
+      if (!this.result && this.moves.length > 0) {
+        this.loadCached().then((hit) => {
+          if (this.disposed || !this.active) return;
+          if (hit) {
+            this.syncPly(this.viewPly);
+          } else {
+            this.noticeEl.hidden = false;
+            this.noticeEl.textContent = `Ván đấu có ${this.moves.length} nước — bấm "Phân tích" để đánh giá toàn bộ ván và vẽ biểu đồ.`;
+          }
+        });
+      }
       this.syncPly(this.viewPly);
     }
   }
 
-  /** Sync live local game state when moves are played / undone / stepped while panel is open. */
+  /** Sync game state when moves are played / undone / stepped while panel is mounted. */
   refreshLiveLocalState() {
-    if (!this.isLiveLocal || !this.getBoardState || this.disposed) return;
-    const st = this.getBoardState();
-    this.startFen = st.startFen;
-    this.moves = st.moves;
-    this.viewPly = st.viewPly;
-    this.gameKey = gameFingerprint(this.startFen, this.moves);
+    if (!this.getBoardState || this.disposed) return;
+    const st = this._syncFromBoardState();
+    if (!st) return;
     this.clearPreview();
-    if (!this.active || this.running) return;
+    if (!this.active) return;
+    if (this.result) {
+      this.syncPly(st.viewPly);
+      return;
+    }
+    if (!this.isLiveLocal || this.running) return;
     this._liveScheduler.schedule({
       fen: st.currentFen,
       ply: st.viewPly,
@@ -548,11 +627,7 @@ export class AnalysisPanel {
 
   async openSetupModal() {
     if (this.variant === 'jieqi' || (this.isUnfinished && !this.isLiveLocal)) return;
-    if (this.isLiveLocal && this.getBoardState) {
-      const st = this.getBoardState();
-      this.startFen = st.startFen;
-      this.moves = st.moves;
-    }
+    this._syncFromBoardState();
     const modalRoot = this.ctx.modalRoot;
     if (!modalRoot) return;
     const engInfo = await probeAnalysisEngine();
@@ -670,12 +745,7 @@ export class AnalysisPanel {
 
   start({ preset = 'fast', forceEngine = undefined, fromPly = 0, toPly = undefined } = {}) {
     if (this.variant === 'jieqi' || (this.isUnfinished && !this.isLiveLocal)) return null;
-    if (this.isLiveLocal && this.getBoardState) {
-      const st = this.getBoardState();
-      this.startFen = st.startFen;
-      this.moves = st.moves;
-      this.gameKey = gameFingerprint(this.startFen, this.moves);
-    }
+    this._syncFromBoardState();
     this._liveScheduler.cancel();
     this.stop();
     this.lastRunOpts = { preset, forceEngine, fromPly, toPly };
@@ -787,6 +857,7 @@ export class AnalysisPanel {
     if (!opts.keepMistakeFocus || this.focusedMistakePly !== ply + 1) {
       this.focusedMistakePly = null;
     }
+    this._syncStepper();
     const pos = this._activePosForPly(ply);
     if (pos && this.evalBar) {
       this.evalBar.setScore(pos.scoreRed, pos.wdlRed);
@@ -969,14 +1040,28 @@ export class AnalysisPanel {
       ${playedHtml}
     `;
 
-    // Bind PV chip non-destructive ghost preview
+    // Bind PV chip non-destructive ghost preview (with numbered arrows 1..k ONLY while previewing)
+    const builtLines = lines.map((ln) => buildValidatedPvChips(fen, ln.pv || (ln.move ? [ln.move] : []), maxPlies).chips);
+    const moverSide = /\s+b(\s|$)/.test(fen) ? 'black' : 'red';
     this.bestCard.querySelectorAll('.an-pv-chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         const previewFen = chip.dataset.previewFen;
         if (!previewFen || !this.onPreviewFen) return;
+        const lineIdx = Number(chip.dataset.line) || 0;
+        const chipIdx = Number(chip.dataset.chipIdx) || 0;
+        const seq = (builtLines[lineIdx] || []).slice(0, chipIdx + 1);
+        const pvArrows = seq.map((c, i) => ({
+          from: c.from,
+          to: c.to,
+          move: c.iccs,
+          kind: i === 0 ? 'best' : 'pv',
+          color: c.side === moverSide ? '#38BDF8' : '#94A3B8',
+          opacity: i === seq.length - 1 ? 0.95 : Math.max(0.45, 0.82 - i * 0.08),
+          badge: String(i + 1),
+        }));
         this.previewActive = true;
         this.bestCard.querySelectorAll('.an-pv-chip').forEach((c) => c.classList.toggle('is-active', c === chip));
-        this.onPreviewFen(previewFen, 'Đang xem phương án của máy (Esc để quay lại)');
+        this.onPreviewFen(previewFen, pvArrows);
       });
     });
 
@@ -1146,8 +1231,8 @@ export class AnalysisPanel {
     }
     if (this.result) {
       const data = selectAnalysisPositionData(this.result, ply, this.focusedMistakePly);
-      if (data && data.isMistakeFocus) {
-        this.boardView.setAnalysisArrows(data.arrows);
+      if (data) {
+        this.boardView.setAnalysisArrows(data.arrows || []);
         return;
       }
     }
@@ -1156,20 +1241,16 @@ export class AnalysisPanel {
       this.boardView.setAnalysisArrows([]);
       return;
     }
-    // Draw numbered PV arrows 1..6 (own side blue, opponent grey)
-    const fen = this._currentFenForPly(ply);
-    const pv = pos.lines?.[0]?.pv || (pos.bestmove ? [pos.bestmove] : []);
-    const built = buildValidatedPvChips(fen, pv, 6);
-    const moverSide = /\s+b(\s|$)/.test(fen) ? 'black' : 'red';
-    const arrows = built.chips.map((c, idx) => ({
-      from: c.from,
-      to: c.to,
-      move: c.iccs,
-      kind: idx === 0 ? 'best' : 'pv',
-      color: c.side === moverSide ? '#38BDF8' : '#94A3B8',
-      opacity: idx === 0 ? 0.92 : Math.max(0.45, 0.8 - idx * 0.08),
-      badge: String(idx + 1),
-    }));
+    // Live single-position mode: draw clean best-move (blue) + optional 2nd-best (subtle grey)
+    const arrows = [];
+    const best = parseIccs(pos.bestmove || pos.lines?.[0]?.move);
+    if (best) {
+      arrows.push({ from: best.from, to: best.to, move: pos.bestmove || pos.lines?.[0]?.move, kind: 'best', color: '#38BDF8', opacity: 0.92 });
+    }
+    const second = pos.lines?.[1]?.move ? parseIccs(pos.lines[1].move) : null;
+    if (second && pos.lines[1].move !== (pos.bestmove || pos.lines?.[0]?.move)) {
+      arrows.push({ from: second.from, to: second.to, move: pos.lines[1].move, kind: 'second', color: '#94A3B8', opacity: 0.45 });
+    }
     this.boardView.setAnalysisArrows(arrows);
   }
 

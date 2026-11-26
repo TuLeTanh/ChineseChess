@@ -5083,6 +5083,34 @@ body.mode-effects .board-stage {
   gap: 5px;
   flex-wrap: wrap;
 }
+.an-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(217, 164, 65, 0.18);
+  flex-shrink: 0;
+}
+.an-stepper[hidden] {
+  display: none !important;
+}
+.an-stepper .rev-btn {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+.an-step-counter {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary, #f4ebdc);
+  font-variant-numeric: tabular-nums;
+}
 .an-verdict-card,
 .an-quality-card {
   padding: 8px 10px;

@@ -1241,7 +1241,7 @@ export class SidePanel {
     const items = pieces.map((piece, idx) => {
       const hiddenFace = this._shouldHideCapturedJieqiPiece(piece);
       const id = hiddenFace
-        ? pieceBackSymbolId(this.theme.id, piece.side)
+        ? pieceBackSymbolId(this.theme.id, piece.side, 'live')
         : pieceSymbolId(this.theme.id, piece.side, piece.kind, 'live');
       const isNew = idx >= prevCount;
       return `<svg class="captured-mini${isNew ? ' is-new' : ''}${hiddenFace ? ' is-covered-cap' : ''}" data-covered-cap="${hiddenFace ? '1' : '0'}" viewBox="0 0 120 120" width="34" height="34" overflow="visible" aria-hidden="true">

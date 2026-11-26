@@ -455,6 +455,13 @@ export function createGameScreen(ctx) {
           if (onlineBridge && onlineBridge.drawBtn) onlineBridge.drawBtn.click();
         },
         onOpenAnalysis: () => openAnalysis(),
+        onAnalyzeGame: () => {
+          controller.cancelEndFx();
+          controller.viewPly = controller.board.history.length;
+          sidePanel.update(controller.lastStatus);
+          controller.updateViewHook();
+          openAnalysis();
+        },
         onOpenSettings: (triggerEl) => openSettingsModal(ctx, 'appearance', triggerEl),
         onExportGame: () => {
           const viewedFen = controller.board.snapshotAt(controller.viewPly).fen;
@@ -475,7 +482,13 @@ export function createGameScreen(ctx) {
           sidePanel.update(controller.lastStatus);
           controller.updateViewHook();
         },
-        onSelectPly: (ply, opts) => controller.goToPly(ply, opts),
+        onSelectPly: (ply, opts) => {
+          if (analysisPanel && analysisPanel.result && !opts?.isScrub) {
+            analysisPanel.selectMove(ply, opts);
+          } else {
+            controller.goToPly(ply, opts);
+          }
+        },
         onStepPly: (delta) => controller.goToPly(controller.viewPly + delta),
         onToggleAutoPlay: () => controller.toggleAutoPlay(),
         onConfirmTruncate: (ply) => controller.handleContinueFromHere(ply),
@@ -644,7 +657,10 @@ export function createGameScreen(ctx) {
               gameOver: controller.isGameOver(),
             };
           },
-          onSelectPly: (ply, opts) => controller.goToPly(ply, opts),
+          onSelectPly: (ply, opts) => {
+            controller.goToPly(ply, opts);
+            analysisPanel?.syncPly(controller.viewPly, opts);
+          },
           onClose: () => closeAnalysis(),
           onPreviewFen: (fen, pvArrows) => {
             if (!boardView || !controller) return;

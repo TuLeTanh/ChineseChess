@@ -354,6 +354,7 @@ export class OnlineGameBridge {
       board.loadFen(state.fen);
     }
     this.controller.playerSide = this.mySide;
+    this.sidePanel.playerSide = this.mySide;
     this.controller.viewPly = board.history.length;
     this.controller.inReviewMode = false;
 

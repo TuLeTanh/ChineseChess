@@ -1,6 +1,6 @@
 import { RED, BLACK } from '../model/piece.js';
 import { GameStatus } from '../rules.js';
-import { pieceSymbolId } from '../render/pieceSvg.js';
+import { pieceSymbolId, pieceBackSymbolId } from '../render/pieceSvg.js';
 import { AI_LEVELS } from '../ai/levels.js';
 import { NON_GENERAL_KINDS } from '../jieqi/rules.js';
 import { panelPolicy } from '../app/panelPolicy.js';
@@ -476,6 +476,7 @@ export class SidePanel {
       this.resultBanner.hidden = true;
     }
 
+    this._isLiveGameOver = Boolean(resultText) || this.resigned || this.localDrawAgreed || this.isArchive;
     this._syncAiCardsAndButtons(Boolean(resultText) || isReview);
     this._syncCompactHeaderAndActions({ isReview, canUndo, undoDisallowed, resultText, statusText: resultText || ((!isReview && status === GameStatus.Check) || (isReview && snap.gaveCheck) ? 'Chiếu tướng!' : this.aiThinking ? 'Máy đang nghĩ…' : viewedSide === RED ? 'Lượt của Đỏ' : 'Lượt của Đen') });
     this._renderCapturedTray(this.blackTray, this.board.capturedByAt(BLACK, clampedView), 'black');
@@ -1218,6 +1219,16 @@ export class SidePanel {
     this.moveScrollWrap.classList.toggle('has-fade-bottom', canDown);
   }
 
+  _shouldHideCapturedJieqiPiece(piece) {
+    if (!this.isJieqi || this._isLiveGameOver) return false;
+    if (!piece || !(piece.wasCoveredOnCapture || piece.covered)) return false;
+    // In AI / online live games: hide YOUR OWN covered pieces captured by opponent
+    // (you only see your already-revealed pieces when opponent eats them, while you see all pieces you captured).
+    // In local 2-player live games (shared screen): keep covered captures face-down for both sides until game over.
+    const viewerSide = this.mode === 'ai' || this.mode === 'online' ? this.playerSide : null;
+    return viewerSide === null || piece.side === viewerSide;
+  }
+
   _renderCapturedTray(trayEl, pieces, key) {
     const prevCount = this._prevCapturedCounts[key] || 0;
     this._prevCapturedCounts[key] = pieces.length;
@@ -1228,9 +1239,12 @@ export class SidePanel {
     }
 
     const items = pieces.map((piece, idx) => {
-      const id = pieceSymbolId(this.theme.id, piece.side, piece.kind, 'live');
+      const hiddenFace = this._shouldHideCapturedJieqiPiece(piece);
+      const id = hiddenFace
+        ? pieceBackSymbolId(this.theme.id, piece.side, 'live')
+        : pieceSymbolId(this.theme.id, piece.side, piece.kind, 'live');
       const isNew = idx >= prevCount;
-      return `<svg class="captured-mini${isNew ? ' is-new' : ''}" viewBox="0 0 120 120" width="34" height="34" overflow="visible" aria-hidden="true">
+      return `<svg class="captured-mini${isNew ? ' is-new' : ''}${hiddenFace ? ' is-covered-cap' : ''}" data-covered-cap="${hiddenFace ? '1' : '0'}" viewBox="0 0 120 120" width="34" height="34" overflow="visible" aria-hidden="true">
         <use href="#${id}" width="120" height="120"/>
       </svg>`;
     });
@@ -1430,7 +1444,21 @@ export class SidePanel {
       return;
     }
     this.poolPanelEl.hidden = false;
-    const pool = this.board.getPool(this.viewPly);
+    const rawPool = this.board.getPool(this.viewPly);
+    const pool = {
+      [RED]: { ...(rawPool[RED] || {}) },
+      [BLACK]: { ...(rawPool[BLACK] || {}) },
+    };
+    // Add back hidden captured covered pieces so the player cannot deduce what their lost covered piece was
+    if (!this._isLiveGameOver && typeof this.board.capturedByAt === 'function') {
+      const capsByBlack = this.board.capturedByAt(BLACK, this.viewPly) || [];
+      const capsByRed = this.board.capturedByAt(RED, this.viewPly) || [];
+      for (const p of [...capsByBlack, ...capsByRed]) {
+        if (this._shouldHideCapturedJieqiPiece(p) && p.kind && p.kind !== 'general') {
+          pool[p.side][p.kind] = (pool[p.side][p.kind] || 0) + 1;
+        }
+      }
+    }
 
     const buildRow = (side, label) => {
       const counts = pool[side] || {};

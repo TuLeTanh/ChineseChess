@@ -469,7 +469,7 @@ export class JieqiBoard {
         if (this.pool[captured.side][capSecret] > 0) {
           this.pool[captured.side][capSecret] -= 1;
         }
-        capturedPublic = { side: captured.side, kind: capSecret, covered: false };
+        capturedPublic = { side: captured.side, kind: capSecret, covered: false, wasCoveredOnCapture: true };
         capturedReveal = { type: capSecret, side: captured.side };
       }
     }

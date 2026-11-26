@@ -778,6 +778,12 @@ class BridgeHandler(http.server.SimpleHTTPRequestHandler):
             return None, (400, {"error": "JSON body must be an object"})
         return obj, None
 
+    def end_headers(self):
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/" or path.endswith((".js", ".css", ".html")):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def do_GET(self):
         if not self._check_host():
             return

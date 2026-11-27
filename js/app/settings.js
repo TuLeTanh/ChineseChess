@@ -60,6 +60,7 @@ export function createDefaultSettings() {
     nickname: defaultNickname(),
     guestId: generateGuestId(),
     theme: 'go-lim',
+    notation: 'traditional', // 'traditional' | 'coord'
     bgQuality: 'high', // 'high' | 'low' | 'off'
     haptics: true,
     touchLift: true,
@@ -137,6 +138,7 @@ function normalizeSettings(raw) {
         ? raw.guestId.toLowerCase()
         : def.guestId,
     theme: raw.theme === 'ngoc-bich' ? 'ngoc-bich' : 'go-lim',
+    notation: raw.notation === 'coord' ? 'coord' : 'traditional',
     bgQuality: ['high', 'low', 'off'].includes(raw.bgQuality) ? raw.bgQuality : def.bgQuality,
     haptics: typeof raw.haptics === 'boolean' ? raw.haptics : true,
     touchLift: typeof raw.touchLift === 'boolean' ? raw.touchLift : true,

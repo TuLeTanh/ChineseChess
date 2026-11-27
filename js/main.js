@@ -109,7 +109,10 @@ async function init() {
   gameStore.onError = ({ message }) => {
     if (message) showStorageBanner(message);
   };
-  if (isTestMode) window.__gameStore = gameStore;
+  if (isTestMode) {
+    window.__gameStore = gameStore;
+    window.__settingsStore = settingsStore;
+  }
 
   const ctx = {
     testMode: isTestMode,

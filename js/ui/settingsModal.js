@@ -6,6 +6,7 @@
  */
 import { isValidNickname, isValidServerUrl } from '../app/settings.js';
 import { openImportModal, triggerDownload, copyTextWithFallback } from './saveModals.js';
+import { openNotationHelpModal } from './notationHelpModal.js';
 
 const APP_VERSION = '1.0.0';
 
@@ -119,6 +120,18 @@ export function openSettingsModal(ctx, initialTab = 'account', returnFocusEl = n
             <button type="button" class="mini-seg-btn${s.bgQuality === 'off' ? ' is-selected' : ''}" data-bgq="off">Tắt</button>
           </div>
           ${reduced ? '<div class="set-hint">Hệ thống đang bật giảm chuyển động (prefers-reduced-motion); nền được hiển thị tĩnh.</div>' : ''}
+        </div>
+        <div class="set-field">
+          <div class="set-not-head">
+            <label class="set-toggle" style="margin:0;flex:1">
+              <input type="checkbox" id="set-notation-toggle" data-testid="set-notation-toggle" ${s.notation !== 'coord' ? 'checked' : ''}>
+              <span>Ghi nước đi kiểu truyền thống</span>
+            </label>
+            <button type="button" class="mini-seg-btn" data-testid="notation-help-btn" title="Hướng dẫn cách đọc nước đi">? Cách đọc</button>
+          </div>
+          <div class="set-hint" data-testid="set-notation-example">
+            Ví dụ: ${s.notation !== 'coord' ? '<strong>Pháo 2 bình 5</strong> ↔ h2e2' : '<strong>h2e2</strong> ↔ Pháo 2 bình 5'}
+          </div>
         </div>
       `;
     } else if (activeTab === 'audio') {
@@ -295,6 +308,22 @@ export function openSettingsModal(ctx, initialTab = 'account', returnFocusEl = n
           render();
         });
       });
+      const notToggle = modalRoot.querySelector('#set-notation-toggle');
+      if (notToggle) {
+        notToggle.addEventListener('change', (ev) => {
+          ctx.settingsStore.update((st) => {
+            st.notation = ev.target.checked ? 'traditional' : 'coord';
+          });
+          render();
+        });
+      }
+      const notHelpBtn = modalRoot.querySelector('[data-testid="notation-help-btn"]');
+      if (notHelpBtn) {
+        notHelpBtn.addEventListener('click', () => {
+          window.removeEventListener('keydown', onKeyDown, true);
+          openNotationHelpModal(ctx, prevFocus);
+        });
+      }
     } else if (activeTab === 'audio') {
       const volEl = modalRoot.querySelector('#set-vol');
       const volVal = modalRoot.querySelector('#set-vol-val');

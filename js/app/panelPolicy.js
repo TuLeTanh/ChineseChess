@@ -97,7 +97,7 @@ export function panelPolicy(ctx = {}) {
   if (!isArchive && rawMode !== 'online') {
     menuItems.push('new_game');
   }
-  menuItems.push('flip', 'theme', 'audio', 'export', 'settings');
+  menuItems.push('flip', 'theme', 'notation', 'notation_help', 'audio', 'export', 'settings');
   if (isJieqi) {
     menuItems.push('jieqi_analysis_note');
   }

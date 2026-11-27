@@ -5299,3 +5299,180 @@ body.mode-effects .board-stage {
     transition: none !important;
   }
 }
+
+/* =========================================================
+   Traditional Vietnamese Move Notation (Width-Aware + Help Modal)
+   ========================================================= */
+.move-chip {
+  container-type: inline-size;
+  min-width: 0;
+}
+.move-chip .move-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.move-chip .move-text-full {
+  display: none;
+}
+.move-chip .move-text-short {
+  display: inline;
+}
+@container (min-width: 112px) {
+  .move-chip .move-text-full {
+    display: inline;
+  }
+  .move-chip .move-text-short {
+    display: none;
+  }
+}
+
+/* Mobile horizontal move strip always uses compact short form to fit smoothly */
+.mstrip-chip .move-text-full {
+  display: none;
+}
+.mstrip-chip .move-text-short {
+  display: inline;
+}
+
+/* Analysis muted counterpart in parentheses */
+.an-other-not {
+  font-size: 0.9em;
+  font-weight: 500;
+  color: var(--text-muted, #bba98d);
+}
+
+/* Settings notation toggle row */
+.set-not-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Help dialog "Cách đọc nước đi" (C4) */
+.nhelp-modal {
+  max-width: min(520px, 94vw);
+  width: 100%;
+  max-height: calc(var(--vvh, 100dvh) - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.nhelp-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.nhelp-intro {
+  margin: 0;
+  color: var(--accent-gold, #e6b85c);
+}
+.nhelp-rules {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-primary, #f4ebdc);
+}
+.nhelp-example-box {
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(217, 164, 65, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.nhelp-ex-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.nhelp-ex-tabs .mini-seg-btn {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+.nhelp-ex-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.nhelp-board-wrap {
+  width: 100%;
+  max-width: 240px;
+  margin: 0 auto;
+}
+.nhelp-board-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+.nhelp-ex-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.nhelp-ex-pair {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.nhelp-ex-trad {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent-gold, #e6b85c);
+}
+.nhelp-ex-coord {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted, #bba98d);
+}
+.nhelp-ex-short {
+  font-size: 12.5px;
+  color: var(--text-primary, #f4ebdc);
+}
+.nhelp-ex-explain {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-primary, #f4ebdc);
+}
+.nhelp-short-table {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(217, 164, 65, 0.1);
+  font-size: 12.5px;
+  color: var(--text-primary, #f4ebdc);
+}
+.nhelp-jieqi-note {
+  margin: 0;
+}
+@media (max-width: 520px) {
+  .nhelp-ex-grid {
+    grid-template-columns: 1fr;
+  }
+  .nhelp-board-wrap {
+    max-width: 200px;
+  }
+  .nhelp-ex-tabs .mini-seg-btn {
+    min-height: 44px;
+  }
+}

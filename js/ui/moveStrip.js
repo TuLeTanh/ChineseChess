@@ -3,6 +3,8 @@
  * Renders flat tappable move chips + a 44x44 "⌃" sheet opener button,
  * auto-scrolls to the active viewed ply, and supports drag-up to open the sheet.
  */
+import { formatMoveDisplay, buildMoveTextSpansHtml } from './moveText.js';
+
 const PIECE_CHARS = {
   red: {
     general: '帥',
@@ -38,12 +40,21 @@ export class MoveStrip {
     this.board = opts.board;
     this.onSelectPly = opts.onSelectPly || (() => {});
     this.onOpenSheet = opts.onOpenSheet || (() => {});
+    this.notation = opts.notation === 'coord' ? 'coord' : 'traditional';
     this.viewPly = 0;
     this._lastCount = -1;
     this._lastView = -1;
+    this._lastNotation = '';
     this._dragStartY = null;
 
     this._build();
+  }
+
+  setNotation(notation) {
+    const next = notation === 'coord' ? 'coord' : 'traditional';
+    if (this.notation === next) return;
+    this.notation = next;
+    this.update(this.viewPly, true);
   }
 
   _build() {
@@ -123,20 +134,22 @@ export class MoveStrip {
     }
   }
 
-  update(viewPly = this.board.history.length) {
+  update(viewPly = this.board.history.length, force = false) {
     const history = this.board.history || [];
     const total = history.length;
     this.viewPly = Math.max(0, Math.min(total, viewPly));
 
-    if (total === this._lastCount && this.viewPly === this._lastView) return;
+    if (!force && total === this._lastCount && this.viewPly === this._lastView && this.notation === this._lastNotation) return;
     this._lastCount = total;
     this._lastView = this.viewPly;
+    this._lastNotation = this.notation;
 
     if (total === 0) {
       this.scroller.innerHTML = `<span class="mstrip-empty">Chưa có nước đi</span>`;
       return;
     }
 
+    const variant = this.board.isJieqi ? 'jieqi' : 'xiangqi';
     const parts = [];
     for (let i = 0; i < total; i++) {
       const mv = history[i];
@@ -145,13 +158,23 @@ export class MoveStrip {
       const num = i % 2 === 0 ? `${Math.floor(i / 2) + 1}.` : '';
       const glyph = mv.piece ? PIECE_CHARS[mv.piece.side]?.[mv.piece.kind] || '' : '';
       const cap = mv.captured ? '<span class="mstrip-cap">×</span>' : '';
-      const chk = mv.suffix ? `<span class="mstrip-suf">${mv.suffix}</span>` : '';
       const rev = mv.wasCovered && mv.reveal ? '<span class="move-reveal-badge">LẬT</span>' : '';
+      const beforeFen = typeof this.board.snapshotAt === 'function' ? this.board.snapshotAt(i)?.fen : null;
+      const disp = formatMoveDisplay({
+        position: beforeFen,
+        move: mv.iccs || '',
+        variant,
+        setting: this.notation,
+        extras: {
+          revealKind: mv.wasCovered && mv.reveal ? mv.reveal.type : null,
+          suffix: mv.suffix || '',
+        },
+      });
       parts.push(
-        `<button type="button" class="mstrip-chip${isViewed ? ' is-viewed' : ''}${mv.captured ? ' is-capture' : ''}" data-ply="${ply}" data-nowrap="1">` +
+        `<button type="button" class="mstrip-chip${isViewed ? ' is-viewed' : ''}${mv.captured ? ' is-capture' : ''}" data-ply="${ply}" data-move="${disp.coord}" title="${disp.title}" aria-label="${disp.aria}" data-nowrap="1">` +
           (num ? `<span class="mstrip-num">${num}</span>` : '') +
           `<span class="mstrip-glyph is-${mv.side}">${glyph}</span>` +
-          `<span class="mstrip-iccs">${mv.iccs || ''}</span>${cap}${chk}${rev}` +
+          `<span class="mstrip-iccs">${buildMoveTextSpansHtml(disp, mv.suffix || '')}</span>${cap}${rev}` +
         `</button>`
       );
     }

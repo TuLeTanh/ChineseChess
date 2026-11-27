@@ -33,6 +33,7 @@ import {
   createLiveAnalysisScheduler,
 } from '../app/panelPolicy.js';
 import { pieceSymbolId } from '../render/pieceSvg.js';
+import { formatMoveDisplay, formatMoveWithParen, formatLine } from './moveText.js';
 
 const FILES = 'abcdefghi';
 
@@ -108,6 +109,7 @@ export class AnalysisPanel {
     this.startFen = opts.startFen;
     this.moves = opts.moves || [];
     this.variant = opts.variant || 'xiangqi';
+    this.notation = opts.notation || opts.ctx?.settingsStore?.get?.()?.notation || 'traditional';
     this.isUnfinished = Boolean(opts.isUnfinished);
     this.isLiveLocal = Boolean(opts.isLiveLocal);
     this.getBoardState = opts.getBoardState || null;
@@ -420,6 +422,15 @@ export class AnalysisPanel {
     setDis('[data-an-step="prev"]', total === 0 || this.viewPly <= 0);
     setDis('[data-an-step="next"]', total === 0 || this.viewPly >= total);
     setDis('[data-an-step="end"]', total === 0 || this.viewPly >= total);
+  }
+
+  setNotation(notation) {
+    const next = notation === 'coord' ? 'coord' : 'traditional';
+    if (this.notation === next) return;
+    this.notation = next;
+    this._renderQuality(this.viewPly);
+    this._renderNextMoves(this.viewPly);
+    this._renderSummary();
   }
 
   /** Activate or deactivate panel (starts/stops live local analysis & eval bar). */
@@ -951,8 +962,23 @@ export class AnalysisPanel {
     this.qualityCard.hidden = false;
     const sideVi = ann.side === 'red' ? 'Đỏ' : 'Đen';
     const dropRounded = Math.round(ann.winDrop || 0);
-    const betterTxt =
-      ann.bestMove && ann.bestMove !== ann.move ? ` Nước tốt hơn: ${ann.bestMove}.` : '';
+    const beforeFen = this._currentFenForPly(Math.max(0, ann.ply - 1));
+    const mvFmt = formatMoveWithParen({
+      position: beforeFen,
+      move: ann.move,
+      variant: this.variant,
+      setting: this.notation,
+    });
+    const bestFmt =
+      ann.bestMove && ann.bestMove !== ann.move
+        ? formatMoveWithParen({
+            position: beforeFen,
+            move: ann.bestMove,
+            variant: this.variant,
+            setting: this.notation,
+          })
+        : null;
+    const betterTxt = bestFmt ? ` Nước tốt hơn: ${bestFmt.text}.` : '';
     const sentence =
       dropRounded > 0
         ? `Nước này làm ${sideVi} mất ${dropRounded} % cơ hội thắng.${betterTxt}`
@@ -963,7 +989,7 @@ export class AnalysisPanel {
       <div class="an-quality-head" style="border-left:3px solid ${ann.color}">
         <span class="an-quality-sym" style="color:${ann.color}">${ann.symbol}</span>
         <strong>${ann.label}</strong>
-        <span class="an-quality-mv">Nước ${ann.ply}: ${ann.move}</span>
+        <span class="an-quality-mv">Nước ${ann.ply}: ${mvFmt.html}</span>
       </div>
       <p class="an-quality-desc">${sentence}</p>
       ${
@@ -998,14 +1024,19 @@ export class AnalysisPanel {
     const lines = (pos.lines || []).slice(0, 2);
 
     const buildLineHtml = (ln, idx) => {
-      const built = buildValidatedPvChips(fen, ln.pv || (ln.move ? [ln.move] : []), maxPlies);
+      const pvArr = ln.pv || (ln.move ? [ln.move] : []);
+      const built = buildValidatedPvChips(fen, pvArr, maxPlies);
+      const shortLabels = formatLine(fen, pvArr.slice(0, built.chips.length), { variant: this.variant, style: 'short' });
+      const fullLabels = formatLine(fen, pvArr.slice(0, built.chips.length), { variant: this.variant, style: 'full' });
       const chipsHtml = built.chips
-        .map((c) => {
+        .map((c, ci) => {
           const symId = pieceSymbolId(themeId, c.side, c.kind, 'live');
-          return `<button type="button" class="an-pv-chip is-${c.side}" data-line="${idx}" data-chip-idx="${c.plyOffset - 1}" data-preview-fen="${c.fenAfter}">
+          const label = this.notation === 'coord' ? c.iccs : (shortLabels[ci] || c.iccs);
+          const fullTitle = this.notation === 'coord' ? (fullLabels[ci] || c.iccs) : `${fullLabels[ci] || c.iccs} (${c.iccs})`;
+          return `<button type="button" class="an-pv-chip is-${c.side}" data-line="${idx}" data-chip-idx="${c.plyOffset - 1}" data-move="${c.iccs}" data-preview-fen="${c.fenAfter}" title="${fullTitle}">
             <span class="an-pv-num">${c.plyOffset}.</span>
             <svg viewBox="0 0 120 120" width="16" height="16" aria-hidden="true"><use href="#${symId}" width="120" height="120"/></svg>
-            <span>${c.iccs}</span>
+            <span>${label}</span>
           </button>`;
         })
         .join('');
@@ -1021,10 +1052,19 @@ export class AnalysisPanel {
       `;
     };
 
-    const playedHtml =
+    const playedFmt =
       data && data.playedNext
+        ? formatMoveWithParen({
+            position: fen,
+            move: data.playedNext.move,
+            variant: this.variant,
+            setting: this.notation,
+          })
+        : null;
+    const playedHtml =
+      data && data.playedNext && playedFmt
         ? `<div class="an-played-row" data-testid="an-played-row" style="border-left:3px solid ${data.playedNext.color}">
-            <span>Nước đã đi: <strong>${data.playedNext.move}</strong> (${formatEvalScore(data.playedNext.scoreRed)})</span>
+            <span>Nước đã đi: ${playedFmt.html} (${formatEvalScore(data.playedNext.scoreRed)})</span>
             <span style="color:${data.playedNext.color};font-weight:700">${data.playedNext.symbol} ${data.playedNext.label}</span>
           </div>`
         : '';
@@ -1152,14 +1192,21 @@ export class AnalysisPanel {
         ? `<div class="an-top-mistakes">
             <div class="an-sub-title">Sai lầm lớn nhất</div>
             ${s.topMistakes
-              .map(
-                (m) => `
-              <button type="button" class="an-mistake-item" data-jump-ply="${m.ply}">
+              .map((m) => {
+                const mFen = this._currentFenForPly(Math.max(0, m.ply - 1));
+                const mf = formatMoveWithParen({
+                  position: mFen,
+                  move: m.move,
+                  variant: this.variant,
+                  setting: this.notation,
+                });
+                return `
+              <button type="button" class="an-mistake-item" data-jump-ply="${m.ply}" data-move="${m.move}">
                 <span class="an-mistake-sym" style="color:${m.color}">${m.symbol}</span>
-                <span>Nước ${m.ply} (${m.side === 'red' ? 'Đỏ' : 'Đen'}): <strong>${m.move}</strong></span>
+                <span>Nước ${m.ply} (${m.side === 'red' ? 'Đỏ' : 'Đen'}): ${mf.html}</span>
                 <span class="an-mistake-drop">-${Math.round(m.winDrop)}%</span>
-              </button>`
-              )
+              </button>`;
+              })
               .join('')}
           </div>`
         : `<p class="set-hint" style="margin:6px 0 0">Không có sai lầm đáng kể.</p>`;

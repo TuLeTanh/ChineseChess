@@ -4,6 +4,7 @@ import { pieceSymbolId, pieceBackSymbolId } from '../render/pieceSvg.js';
 import { AI_LEVELS } from '../ai/levels.js';
 import { NON_GENERAL_KINDS } from '../jieqi/rules.js';
 import { panelPolicy } from '../app/panelPolicy.js';
+import { formatMoveDisplay, buildMoveTextSpansHtml } from './moveText.js';
 
 /**
  * Format a game-over status into Vietnamese result text (supports 2-player and AI modes).
@@ -70,6 +71,7 @@ export class SidePanel {
     this.modalRoot = opts.modalRoot;
     this.board = opts.board;
     this.theme = opts.theme;
+    this.notation = opts.notation === 'coord' ? 'coord' : 'traditional';
     this.variant = opts.variant || 'cotuong';
     this.isJieqi = this.variant === 'coup' || this.variant === 'jieqi' || Boolean(this.board && this.board.isJieqi);
     this.showPool = opts.showPool !== false;
@@ -113,6 +115,15 @@ export class SidePanel {
   setTheme(theme) {
     this.theme = theme;
     this.update(this.gameStatus);
+  }
+
+  /** Update move notation display ('traditional' | 'coord') live without recreating board. */
+  setNotation(notation) {
+    const next = notation === 'coord' ? 'coord' : 'traditional';
+    if (this.notation === next) return;
+    this.notation = next;
+    this._renderMoveList(true);
+    this._renderOverflowMenu(this.getPolicy(), this.resigned || this.localDrawAgreed);
   }
 
   /** Toggle Cờ Úp remaining-pool panel visibility. */
@@ -638,6 +649,11 @@ export class SidePanel {
         items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="flip">⇅ Xoay bàn</button>`);
       } else if (id === 'theme') {
         items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="theme">🎨 Giao diện: ${this.theme.name}</button>`);
+      } else if (id === 'notation') {
+        const notTxt = this.notation === 'coord' ? 'Tọa độ' : 'Truyền thống';
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="notation">📝 Ghi nước đi: ${notTxt}</button>`);
+      } else if (id === 'notation_help') {
+        items.push(`<button type="button" class="p-menu-item" role="menuitem" data-mitem="notation_help">❓ Cách đọc nước đi</button>`);
       } else if (id === 'audio') {
         const sndTxt = this.muted ? 'Tắt' : `${Math.round(this.volume * 100)}%`;
         const vTxt = this.voiceEnabled ? 'Bật' : 'Tắt';
@@ -1052,7 +1068,17 @@ export class SidePanel {
       const label =
         ply === 0
           ? 'Thế ban đầu'
-          : `nước ${ply}: ${this.board.history[ply - 1]?.iccs || ''}${this.board.history[ply - 1]?.suffix || ''}`;
+          : (() => {
+              const mv = this.board.history[ply - 1];
+              const beforeFen = typeof this.board.snapshotAt === 'function' ? this.board.snapshotAt(ply - 1)?.fen : null;
+              const disp = formatMoveDisplay({
+                position: beforeFen,
+                move: mv?.iccs || '',
+                variant: this.isJieqi ? 'jieqi' : 'xiangqi',
+                setting: this.notation,
+              });
+              return `nước ${ply}: ${disp.mainFull}${mv?.suffix || ''}`;
+            })();
       this.timelineTooltip.textContent = label;
       this.timelineTooltip.style.left = `${x}px`;
       this.timelineTooltip.hidden = false;
@@ -1157,6 +1183,8 @@ export class SidePanel {
         else if (act === 'new_game') this.requestNewGame();
         else if (act === 'flip' && this.callbacks.onFlip) this.callbacks.onFlip();
         else if (act === 'theme' && this.callbacks.onToggleTheme) this.callbacks.onToggleTheme();
+        else if (act === 'notation' && this.callbacks.onToggleNotation) this.callbacks.onToggleNotation();
+        else if (act === 'notation_help' && this.callbacks.onOpenNotationHelp) this.callbacks.onOpenNotationHelp(this.panelMenuBtn);
         else if (act === 'mute' && this.callbacks.onToggleMute) this.callbacks.onToggleMute();
         else if (act === 'voice' && this.callbacks.onToggleVoice) this.callbacks.onToggleVoice();
         else if (act === 'export' && this.callbacks.onExportGame) this.callbacks.onExportGame();
@@ -1272,7 +1300,19 @@ export class SidePanel {
     const symId = pieceSymbolId(this.theme.id, move.piece.side, move.piece.kind, 'live');
     const ariaCurr = isViewed ? ' aria-current="step"' : '';
     const tabIdx = isViewed ? '0' : '-1';
-    const titleAttr = isRev ? ` title="Lật quân: ${move.iccs}${move.revealSuffix || ''}"` : '';
+    const beforeFen = typeof this.board.snapshotAt === 'function' ? this.board.snapshotAt(ply - 1)?.fen : null;
+    const disp = formatMoveDisplay({
+      position: beforeFen,
+      move: move.iccs || '',
+      variant: this.isJieqi ? 'jieqi' : 'xiangqi',
+      setting: this.notation,
+      extras: {
+        revealKind: isRev && move.reveal ? move.reveal.type : null,
+        suffix: move.suffix || '',
+      },
+    });
+    const titleAttr = ` title="${disp.title.replace(/"/g, '&quot;')}"`;
+    const ariaAttr = ` aria-label="${disp.aria.replace(/"/g, '&quot;')}"`;
     const capSvg = isCap
       ? '<svg class="move-cap-icon" viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
       : '';
@@ -1280,8 +1320,7 @@ export class SidePanel {
     const chkDot = isChk ? '<span class="move-check-dot" aria-hidden="true"></span>' : '';
     const liveDot = isLatestLive ? '<span class="move-live-dot" aria-hidden="true"></span>' : '';
 
-    // NOTE: keep text content strictly equal to `${move.iccs}${move.suffix || ''}` for notation/test compatibility
-    return `<button type="button" class="${classes.join(' ')}" data-ply="${ply}" tabindex="${tabIdx}"${ariaCurr}${titleAttr}><svg class="move-piece-icon" viewBox="0 0 120 120" width="18" height="18" aria-hidden="true"><use href="#${symId}" width="120" height="120"/></svg><span class="move-text">${move.iccs}${move.suffix || ''}</span>${revBadge}${capSvg}${chkDot}${liveDot}</button>`;
+    return `<button type="button" class="${classes.join(' ')}" data-ply="${ply}" data-move="${disp.coord}" tabindex="${tabIdx}"${ariaCurr}${titleAttr}${ariaAttr}><svg class="move-piece-icon" viewBox="0 0 120 120" width="18" height="18" aria-hidden="true"><use href="#${symId}" width="120" height="120"/></svg><span class="move-text">${buildMoveTextSpansHtml(disp, move.suffix || '')}</span>${revBadge}${capSvg}${chkDot}${liveDot}</button>`;
   }
 
   _renderMoveList(skipScroll = false) {

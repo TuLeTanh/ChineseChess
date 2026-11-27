@@ -18,6 +18,7 @@ import { jieqiVariant } from '../variants/jieqi.js';
 import { dealRemainingPool } from '../jieqi/rules.js';
 import { GameStatus } from '../rules.js';
 import { openSettingsModal } from '../ui/settingsModal.js';
+import { openNotationHelpModal } from '../ui/notationHelpModal.js';
 import {
   openExportModal,
   openContinueFromPositionModal,
@@ -372,6 +373,7 @@ export function createGameScreen(ctx) {
         modalRoot,
         board: controller.board,
         theme: ctx.getTheme(),
+        notation: settings.notation,
         variant: variant.id,
         showPool: settings.jieqi.showPool,
         practiceMode: controller.practiceMode,
@@ -463,6 +465,12 @@ export function createGameScreen(ctx) {
           openAnalysis();
         },
         onOpenSettings: (triggerEl) => openSettingsModal(ctx, 'appearance', triggerEl),
+        onToggleNotation: () => {
+          ctx.settingsStore.update((st) => {
+            st.notation = st.notation === 'coord' ? 'traditional' : 'coord';
+          });
+        },
+        onOpenNotationHelp: (triggerEl) => openNotationHelpModal(ctx, triggerEl),
         onExportGame: () => {
           const viewedFen = controller.board.snapshotAt(controller.viewPly).fen;
           openExportModal(ctx, {
@@ -614,6 +622,7 @@ export function createGameScreen(ctx) {
       moveStrip = new MoveStrip({
         container: moveStripHost,
         board: controller.board,
+        notation: settings.notation,
         onSelectPly: (ply) => controller.goToPly(ply),
         onOpenSheet: () => {
           if (bottomSheet) bottomSheet.open('half');
@@ -782,11 +791,16 @@ export function createGameScreen(ctx) {
       unsubSettings = ctx.settingsStore.subscribe((s) => {
         if (!controller || controller.disposed) return;
         const th = ctx.getTheme();
-        controller.setTheme(th);
-        boardView.setTheme(th);
-        sidePanel.setTheme(th);
+        if (boardView.theme?.id !== th.id) {
+          controller.setTheme(th);
+          boardView.setTheme(th);
+          sidePanel.setTheme(th);
+        }
         sidePanel.syncAudio(s.audio.muted, s.audio.volume, s.audio.voice);
         sidePanel.setShowPool(s.jieqi.showPool);
+        sidePanel.setNotation(s.notation);
+        if (moveStrip) moveStrip.setNotation(s.notation);
+        if (analysisPanel) analysisPanel.setNotation(s.notation);
         if (wakeLock) wakeLock.sync();
       });
 

@@ -17,6 +17,7 @@ import {
   saveRecordWithPrunePrompt,
 } from '../ui/saveModals.js';
 import { openSettingsModal } from '../ui/settingsModal.js';
+import { openNotationHelpModal } from '../ui/notationHelpModal.js';
 import { leakTracker } from '../app/router.js';
 import { LayoutManager } from '../ui/layoutManager.js';
 import { MoveStrip } from '../ui/moveStrip.js';
@@ -283,6 +284,7 @@ export function createReplayScreen(ctx) {
         modalRoot: ctx.modalRoot,
         board,
         theme: ctx.getTheme(),
+        notation: ctx.settingsStore.get().notation,
         variant: isJieqi ? 'coup' : 'cotuong',
         showPool: ctx.settingsStore.get().jieqi.showPool,
         mode: record.mode || 'local',
@@ -307,6 +309,12 @@ export function createReplayScreen(ctx) {
         onResign: () => {},
         onOpenAnalysis: () => openAnalysis(),
         onOpenSettings: (triggerEl) => openSettingsModal(ctx, 'appearance', triggerEl),
+        onToggleNotation: () => {
+          ctx.settingsStore.update((st) => {
+            st.notation = st.notation === 'coord' ? 'traditional' : 'coord';
+          });
+        },
+        onOpenNotationHelp: (triggerEl) => openNotationHelpModal(ctx, triggerEl),
         onReturnLive: () => goToPly(board.history.length),
         onContinueHere: () => {
           openContinueFromPositionModal(ctx, {
@@ -455,6 +463,7 @@ export function createReplayScreen(ctx) {
       moveStrip = new MoveStrip({
         container: moveStripHost,
         board,
+        notation: ctx.settingsStore.get().notation,
         onSelectPly: (ply) => goToPly(ply),
         onOpenSheet: () => {
           if (bottomSheet) bottomSheet.open('half');
@@ -477,6 +486,9 @@ export function createReplayScreen(ctx) {
         boardView.setTheme(th);
         sidePanel.setTheme(th);
         sidePanel.setShowPool(st.jieqi.showPool);
+        sidePanel.setNotation(st.notation);
+        if (moveStrip) moveStrip.setNotation(st.notation);
+        if (analysisPanel) analysisPanel.setNotation(st.notation);
       });
 
       onKeyDown = (ev) => {

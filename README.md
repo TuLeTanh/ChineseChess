@@ -48,6 +48,14 @@ Game Cờ Tướng chạy ngay trên trình duyệt: bàn cờ và quân cờ v�
 |---|---|---|
 | ![Bảng gọn](docs/screenshots/panel_compact.png) | ![Phân tích máy tính](docs/screenshots/analysis_panel_desktop.png) | ![Phân tích điện thoại](docs/screenshots/analysis_panel_mobile.png) |
 
+**Cách ghi nước đi (truyền thống tiếng Việt)**
+- Mặc định hiển thị nước đi theo **ký hiệu cờ tướng truyền thống tiếng Việt** (ví dụ `Pháo 2 bình 5` / `Pháo 2=5`, `Mã 8 tiến 7` / `Mã 8+7`), đếm cột 1–9 từ bên phải người đi; có hộp thoại minh họa **Cách đọc nước đi** với bàn cờ ví dụ tương tác.
+- Có thể chuyển nhanh giữa **Truyền thống** và **Tọa độ (`h2e2`)** trong **Cài đặt → Giao diện** hoặc menu **`⋯`** ngay trong bàn cờ (chỉ thay đổi cách hiển thị, mọi file xuất/lưu/online vẫn giữ tọa độ chuẩn). Xem chi tiết tại [`docs/NOTATION.md`](docs/NOTATION.md).
+
+| | | |
+|---|---|---|
+| ![Danh sách nước đi truyền thống](docs/screenshots/notation_list.png) | ![Phân tích kèm ký hiệu truyền thống](docs/screenshots/notation_analysis.png) | ![Hướng dẫn đọc nước đi trên điện thoại](docs/screenshots/notation_help.png) |
+
 **Giao diện**
 - Bàn cờ và 14 loại quân vẽ hoàn toàn bằng SVG (vân gỗ bằng `feTurbulence`, đổ bóng, vát cạnh, chữ Hán khắc nổi), nét sắc ở mọi độ phân giải (đã kiểm tra DPR 1, 1.5, 2).
 - Hai theme: **Gỗ Lim** (ván gỗ ấm, quân ngà) và **Ngọc Bích** (bàn xanh đá, quân đỏ sơn mài chữ vàng), chuyển theme có hiệu ứng mờ dần.

@@ -297,3 +297,25 @@
   - 4× CPU throttle perf: `p95 = 16.8 ms <= 34 ms`, `idle_raf = 0`, 20-move live spam + 20 round trips: `workers = 0`, `sockets = 0`, `console_errors = 0`.
   - Visual Self-Eval (3 rounds, fixed footer ordering, full-swap pane isolation, replay top-nav clipping, landscape hidden start-chip, and desktop panel height): **R1=5, R2=5, R3=5, R4=5, R5=5, R6=5**.
   - Captured optimized screenshots (`<= 400 KB`): `docs/screenshots/panel_compact.png` (`235 KB`), `docs/screenshots/analysis_panel_desktop.png` (`239 KB`), `docs/screenshots/analysis_panel_mobile.png` (`267 KB`).
+
+## Upgrade Pass — Vietnamese Traditional Move Notation (`feat/traditional-notation`)
+
+- **Phase A (Read & Map)**:
+  - Audited every move display surface (`sidePanel.js`, `moveStrip.js`, `analysisView.js`, `gameScreen.js`, `replayScreen.js`, `libraryScreen.js`) and legacy test assertions into `docs/NOTATION.md`.
+  - Captured 8 baseline screenshots in `preview/notation_before/` across `1180x780`, `960x680`, `390x844`, `844x390`, `820x1180`.
+- **Phase B (Test System First — RED Baseline, `0d5e7ef`)**:
+  - Created `js/notation/names.js`, `tests/notation/traditional.test.js` (8 tests: 24-row golden table, Thoái/Bình 7 pieces, 2/3/4/5 + multi-file disambiguation, 200-pos symmetry, 300 Xiangqi + 300 Jieqi injectivity/round-trip + fuzz, regex + aria, 6-ply `formatLine`, 20-secret Cờ Úp no-peeking), and `tools/verify_notation.py` (N1–N8). Confirmed RED baseline (6/8 unit tests failed, N1–N8 E2E failed).
+- **Phase C (Implementation, C1–C7)**:
+  - **C1 (`786fe2c`)**: Pure `js/notation/traditional.js` (`moveToTraditional`, `parseTraditional`, `formatLine`, `TRADITIONAL_FULL_RE`) — **8/8 PASS**.
+  - **C2 (`3fe09c5`)**: Additive `notation: 'traditional' | 'coord'` setting in `js/app/settings.js`, `'notation'` & `'notation_help'` in `js/app/panelPolicy.js`, Settings → Giao diện toggle + live preview + `? Cách đọc` button in `js/ui/settingsModal.js`.
+  - **C3–C6 (`9629fd6`)**: `js/ui/moveText.js` (with 800-entry LRU cache), `js/ui/notationHelpModal.js` (real SVG mini-board + 3 interactive examples), live UI integration in `sidePanel.js`, `moveStrip.js`, `analysisView.js`, `gameScreen.js`, `replayScreen.js`, and width-aware `@container (min-width: 112px)` CSS in `css/style.css`.
+  - **C7**: Updated `docs/NOTATION.md`, `README.md`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, and captured 3 optimized documentation screenshots (`<= 400 KB`): `docs/screenshots/notation_list.png` (`118.7 KB`), `docs/screenshots/notation_analysis.png` (`111.2 KB`), `docs/screenshots/notation_help.png` (`111.0 KB`).
+- **Phase D (Verification & Visual Self-Eval)**:
+  - Fixed `44 px` touch target sizes on `.nhelp-close` and `.nhelp-ex-tabs .mini-seg-btn` caught by `verify_dialogs.py`.
+  - **All gates GREEN with 0 console errors/warnings**:
+    - `node --test`: **49/49** unit tests + **7/7** online server tests PASS (1 slow PERFT skipped).
+    - `verify_notation.py`: **N1–N8 PASS** (`toCoordMs=36.4 ms`, `toTradMs=24.4 ms < 50 ms` at 4× CPU throttle on 150 plies, `workers=0`, `sockets=0`).
+    - `verify_dialogs.py`: Chromium **141/141 PASS** (9 sizes, 16 dialogs incl. `notation_help`), WebKit **63/63 PASS** (3 sizes, 16 dialogs).
+    - `verify_panel.py`, `verify_analysis.py`, `verify.py`, `verify_jieqi.py`, `verify_saves.py`, `verify_fx.py`, `verify_engine.py`, `verify_races.py`, `verify_sound.py`, `verify_voice.py`, `verify_security.py`: **ALL PASS**.
+    - `verify_mobile_all.py`: **35/35 PASS** (Chromium `M8 max_diff_pct=0.693% <= 1.5%`, WebKit `M8=0.0%`, `T1–T14`, `WK_T1`, `WK_T10`).
+  - **Visual Rubric Scores (1–5)**: **R1=5, R2=5, R3=5, R4=5, R5=5** (all >= 4).

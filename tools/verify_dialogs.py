@@ -240,7 +240,21 @@ def run_crawler(out_dir: Path, baseline: bool = False, use_webkit: bool = False)
                                 tbtn.click()
                                 page.wait_for_timeout(80)
                                 _rec(f"settings_{tab_id}", size_name, theme, _audit_open_dialog(page, f"settings_{tab_id}", spec.width, spec.height))
-                        page.locator(".settings-close").click()
+                        # Open notation help modal from Appearance tab (replaces modalRoot)
+                        app_tab = page.locator('.settings-tab[data-tab="appearance"]')
+                        if app_tab.count() > 0:
+                            app_tab.click()
+                            page.wait_for_timeout(60)
+                            hbtn = page.locator('[data-testid="notation-help-btn"]')
+                            if hbtn.count() > 0:
+                                hbtn.click()
+                                page.wait_for_selector('[data-testid="notation-help-modal"]', timeout=3000)
+                                page.wait_for_timeout(80)
+                                _rec("notation_help", size_name, theme, _audit_open_dialog(page, "notation_help", spec.width, spec.height))
+                                page.locator('[data-testid="notation-help-modal"] .nhelp-close').click()
+                                page.wait_for_timeout(80)
+                        if page.locator(".settings-close").is_visible():
+                            page.locator(".settings-close").click()
                         page.wait_for_timeout(80)
 
                         # Save/Export + Resign confirm on game screen

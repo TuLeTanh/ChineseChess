@@ -140,7 +140,7 @@ def main():
             click_move(page, 7, 7, 4, 7)
             log1 = [e["event"] for e in get_sfx_log(page)]
             assert log1 == ["select", "move"], f"Expected [select, move], got {log1}"
-            assert page.locator(".move-row .col-red").first.text_content() == "h2e2"
+            assert page.locator(".move-row .col-red").first.get_attribute("data-move") == "h2e2"
 
             # Continue opening to reach a check + capture
             click_move(page, 1, 0, 2, 2)  # Black Horse b9->c7
@@ -158,7 +158,7 @@ def main():
             assert ev_names == ["select", "capture", "check", "voice:check"], f"Expected [select, capture, check, voice:check], got {ev_names}"
             assert log_cap_chk[2]["time"] > log_cap_chk[1]["time"], "check gong must fire after capture landing"
             assert log_cap_chk[3]["time"] > log_cap_chk[1]["time"], "voice:check must fire after capture landing"
-            assert page.locator(".move-row .col-red").nth(3).text_content() == "e2e6+", "Expected '+' suffix for check"
+            assert page.locator(".move-row .col-red").nth(3).get_attribute("data-move") == "e2e6" and "+" in (page.locator(".move-row .col-red").nth(3).text_content() or ""), "Expected '+' suffix for check"
             assert page.locator(".board-toast.is-visible .toast-glyph").text_content() == "將軍", "Expected calligraphy caption 將軍"
             assert page.locator(".check-pulse").count() == 1, "Expected pulsing red check glow on Black General"
 
@@ -294,7 +294,7 @@ def main():
             page.locator(".fx-skip-btn").click()
             page.locator(".modal-gameover").wait_for(state="visible", timeout=1000)
             assert "Chiếu bí! Đỏ thắng" in page.locator("#gameover-title").text_content()
-            assert page.locator(".move-row .col-red").first.text_content() == "b7b9#"
+            assert page.locator(".move-row .col-red").first.get_attribute("data-move") == "b7b9" and "#" in (page.locator(".move-row .col-red").first.text_content() or "")
             page.screenshot(path=str(PREVIEW_DIR / "app_checkmate.png"))
             print("[app_checkmate.png] saved")
 

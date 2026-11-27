@@ -5393,14 +5393,18 @@ body.mode-effects .board-stage {
   flex-direction: column;
   gap: 8px;
 }
+.nhelp-close {
+  min-width: 44px;
+  min-height: 44px;
+}
 .nhelp-ex-tabs {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
 }
 .nhelp-ex-tabs .mini-seg-btn {
-  min-height: 36px;
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 6px 12px;
 }
 .nhelp-ex-grid {
   display: grid;
